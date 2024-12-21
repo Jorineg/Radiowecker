@@ -1,34 +1,7 @@
 #!/usr/bin/env python3
 """
-Revised RadioWecker Implementation
-
-Highlights / Changes:
-1. A more detailed display layout that tries to match the user's original specification:
-   - Top line: show current source (left), show time (right), show small icons for active alarms.
-   - Main area: differs by source:
-     • Radio view: show frequency, station name, RDS text.
-     • USB view: show 3-line file explorer (with highlight on the middle line).
-     • Internet Radio view: show currently selected station name.
-     • Bluetooth view: show BT info (placeholder).
-   - Button press states indicated by small circles or dots at the bottom (simulating sensor/hardware feedback).
-2. When switching away from Internet radio, the code stops playback so it doesn't continue in the background.
-3. USB folder display is now rendered as a 3-line “window,” if enough files/folders exist.
-4. A simple "run_startup_commands" function demonstrates temperature reading, GIT version, and (optionally) a “git pull” or other system calls. 
-   This is simplified—customize as you wish for your environment.
-5. In PC mode:
-   - The code uses PyGame for display (128×64 scaled up).
-   - Keyboard inputs 1..5 (or any remapped set) simulate the five touch sensors.
-   - python-vlc is used for audio playback (local files, streams).
-6. If your CSV for Internet radio contains direct .m3u references, you may need to parse or resolve them. This code currently just attempts to play them directly with VLC. 
-   If you find them to be ephemeral, consider calling an API or parsing the .m3u on each attempt.
-   
-To run:
-- On Windows (PC_MODE=True), install python-vlc and pygame:
-    pip install python-vlc pygame
-- Optionally place a stations.csv in the same folder for internet radio stations:
-    StationName,http://url.or.m3u
-- Place at least one folder with .mp3/.wav files to test USB view (the code defaults usb_root to current working directory).
-- Press keys 1..5 (mapped to power, source, menu, forward, backward).
+RadioWecker Implementation with On-Release Button Handling, Long Press for Menu,
+and Alarm Cycle Fix
 """
 
 import os
@@ -72,49 +45,34 @@ DISPLAY_HEIGHT = 64
 KEY_BINDINGS = {
     "power": pygame.K_1,
     "source": pygame.K_2,
-    "menu": pygame.K_3,
+    "menu": pygame.K_3,  # Long-press for menu, short-press could do "Set"
     "forward": pygame.K_4,
     "backward": pygame.K_5,
 }
 
+LONG_PRESS_THRESHOLD = 1.0  # Seconds to qualify as a long press
+
+
 ###############################################################################
 # Utility / Hardware Stubs
 ###############################################################################
-
-
 def run_startup_commands(pc_mode: bool):
-    """
-    Example function to run on application startup:
-    - Optionally run git commands
-    - Check temperature
-    - Display version info
-    Customize or expand as needed.
-    """
-    # We'll just read the CPU temp, do a version check, optionally do a "git pull" if desired
     temp = get_cpu_temperature()
     commit_hash, last_change = get_git_version_info()
     if not pc_mode:
-        # On a real environment, you might do something like:
-        # subprocess.run(["git", "pull"], check=False)
-        pass
+        pass  # On a real environment, possibly a git pull or other init
     print(
         f"[STARTUP] CPU Temp: {temp}C | Git Commit: {commit_hash[:7]} | Last Change: {last_change}"
     )
 
 
 def init_hardware():
-    """
-    Hardware initialization. For Pi usage, set up GPIO or i2c.
-    In PC_MODE, do nothing.
-    """
     if PC_MODE:
         print("[INIT] PC_MODE active. Skipping real hardware init.")
     else:
         if RPI_HARDWARE:
             GPIO.setmode(GPIO.BCM)
             GPIO.setwarnings(False)
-            # Example for TTP223 sensors, or other hardware config:
-            # GPIO.setup(<pin>, GPIO.IN)
             print("[INIT] Raspberry Pi hardware init done.")
         else:
             print("[INIT] Not real Pi environment, skipping hardware init.")
@@ -122,9 +80,9 @@ def init_hardware():
 
 def read_touch_sensors():
     """
-    On Raspberry Pi, read the 5 TTP223 sensors from GPIO pins.
+    On real Pi, read GPIO pins for the 5 TTP223 sensors.
     Returns a dict: { 'power': bool, 'source': bool, 'menu': bool, 'forward': bool, 'backward': bool }
-    In PC_MODE, we do key-based reading in the main loop, so this returns all False here.
+    In PC_MODE, we do key-based reading in the main loop, so we just return all False here.
     """
     if PC_MODE:
         return {
@@ -135,7 +93,7 @@ def read_touch_sensors():
             "backward": False,
         }
     else:
-        # Real code would read GPIO pins.
+        # Replace with actual GPIO input in real usage
         return {
             "power": False,
             "source": False,
@@ -146,10 +104,6 @@ def read_touch_sensors():
 
 
 def get_cpu_temperature():
-    """
-    Get the CPU temperature. On Pi, read from /sys.
-    Returns a float or string if PC_MODE.
-    """
     if PC_MODE:
         return 42.0
     else:
@@ -161,10 +115,6 @@ def get_cpu_temperature():
 
 
 def get_git_version_info():
-    """
-    Retrieve git commit hash and last change time.
-    In PC_MODE, returns placeholders.
-    """
     if PC_MODE:
         return ("DemoCommitHash", "2024-12-20 10:00:00")
     else:
@@ -183,11 +133,9 @@ def get_git_version_info():
 ###############################################################################
 # Radio FM stubs
 ###############################################################################
-
-
 def read_radio_rds():
     """
-    If we had a real RDA5807 or TEA5767 module, read station name & text via RDS.
+    Simulate reading station name & text via RDS.
     PC_MODE returns random station name & text.
     """
     station_names = ["RadioOne", "ClassicFM", "JazzBeats", "LocalNews"]
@@ -201,23 +149,13 @@ def read_radio_rds():
 
 
 def search_radio(direction):
-    """
-    Simulate searching for next/previous radio frequency.
-    Return new frequency as float.
-    """
     return round(random.uniform(76.0, 108.0), 2)
 
 
 ###############################################################################
 # Audio Player (uses VLC)
 ###############################################################################
-
-
 class AudioPlayer:
-    """
-    A minimal audio player that uses python-vlc to play local files or streams.
-    """
-
     def __init__(self):
         self.instance = None
         self.player = None
@@ -228,9 +166,6 @@ class AudioPlayer:
             self.player = self.instance.media_player_new()
 
     def play(self, source: str):
-        """
-        Play local file or network stream from 'source' (path or URL).
-        """
         if not self.player:
             print("[AUDIO] No VLC player instance.")
             return
@@ -240,16 +175,10 @@ class AudioPlayer:
         print(f"[AUDIO] Playing => {source}")
 
     def stop(self):
-        """
-        Stop playback if playing.
-        """
         if self.player:
             self.player.stop()
 
     def is_playing(self):
-        """
-        Return True if the player is currently playing something.
-        """
         if self.player:
             return self.player.is_playing() == 1
         return False
@@ -258,18 +187,10 @@ class AudioPlayer:
 ###############################################################################
 # USB File Navigation
 ###############################################################################
-
-
 def list_audio_files(path: str):
-    """
-    Return a list of (name, is_dir) for .mp3/.wav plus subfolders,
-    plus "zurueck" and "dieser Ordner" as feasible.
-    """
     if not os.path.isdir(path):
         return []
-
     items = []
-    # Add pseudo-options:
     items.append(("zurueck", False))
     items.append(("dieser Ordner", False))
 
@@ -278,7 +199,6 @@ def list_audio_files(path: str):
     except OSError:
         return items
 
-    # Sort for consistency
     sorted_list = sorted(dir_entries, key=str.lower)
     for entry in sorted_list:
         full_path = os.path.join(path, entry)
@@ -294,13 +214,7 @@ def list_audio_files(path: str):
 ###############################################################################
 # Internet Radio (CSV Loader)
 ###############################################################################
-
-
 def read_station_csv(csv_path: str):
-    """
-    Return list of (station_name, url) from CSV lines.
-    Format: station_name,stream_url
-    """
     if not os.path.isfile(csv_path):
         return []
     stations = []
@@ -317,8 +231,6 @@ def read_station_csv(csv_path: str):
 ###############################################################################
 # Main Application
 ###############################################################################
-
-
 class RadioWecker:
     def __init__(self, pc_mode=True):
         self.pc_mode = pc_mode
@@ -326,6 +238,7 @@ class RadioWecker:
         # Alarms
         self.wecker1_active = False
         self.wecker2_active = False
+        self.alarm_mode = 0  # 0: none, 1: alarm1, 2: alarm2, 3: both
         self.wecker1_hour = 6
         self.wecker1_minute = 0
         self.wecker2_hour = 7
@@ -336,41 +249,49 @@ class RadioWecker:
 
         # Sources
         self.sources = ["RADIO", "USB", "INTERNET", "BLUETOOTH"]
-        self.current_source_idx = 0  # 0 => RADIO
+        self.current_source_idx = 0
         self.current_source = self.sources[self.current_source_idx]
 
-        # Audio / Player
+        # Audio
         self.player = AudioPlayer()
 
-        # For radio
+        # Radio
         self.current_radio_freq = 101.0
         self.radio_station_name = ""
         self.radio_station_text = ""
 
-        # For internet radio
+        # Internet radio
         self.stations = read_station_csv("stations.csv")
         self.current_station_idx = 0
 
-        # USB browsing
+        # USB
         self.usb_root = os.getcwd()
         self.current_usb_path = self.usb_root
         self.usb_items = list_audio_files(self.current_usb_path)
         self.usb_selection_index = 0
 
-        # For display
+        # Display
         self.display_contrast = 100
         self.show_clock_on_standby = True
 
         # Git info
         self.commit_hash, self.last_change_time = get_git_version_info()
 
-        # hardware init
-        init_hardware()
+        # Menu
+        self.in_settings_menu = False
 
-        # Possibly run some commands (git, temp check, etc.)
+        # Button press tracking (on-release approach)
+        self.button_states = {
+            "power": {"down": False, "time": 0, "handled": False},
+            "source": {"down": False, "time": 0, "handled": False},
+            "menu": {"down": False, "time": 0, "handled": False},
+            "forward": {"down": False, "time": 0, "handled": False},
+            "backward": {"down": False, "time": 0, "handled": False},
+        }
+
+        init_hardware()
         run_startup_commands(pc_mode=self.pc_mode)
 
-        # PyGame init if PC_MODE
         self.screen = None
         self.clock = None
         if self.pc_mode and PYGAME_AVAILABLE:
@@ -383,68 +304,215 @@ class RadioWecker:
             self.clock = pygame.time.Clock()
 
     ###########################################################################
-    # Standby & Source
+    # Main Loop
     ###########################################################################
-    def toggle_standby(self):
-        self.standby = not self.standby
-        if self.standby:
-            print("[APP] Entering standby => stopping audio.")
+    def run(self):
+        print("[APP] Starting main loop. Press Ctrl+C to exit.")
+        try:
+            if self.pc_mode and PYGAME_AVAILABLE:
+                while True:
+                    self.check_alarms()
+                    events = pygame.event.get()
+                    for ev in events:
+                        if ev.type == QUIT:
+                            pygame.quit()
+                            return
+                        if ev.type == KEYDOWN:
+                            self.update_button_state_pygame(ev.key, True)
+                        # For on-release detection, check if user released a key
+                        if ev.type == pygame.KEYUP:
+                            self.update_button_state_pygame(ev.key, False)
+
+                    self.handle_button_state_logic()
+                    self.draw_display()
+                    pygame.display.flip()
+                    self.clock.tick(20)
+
+            else:
+                # Pi or no Pygame
+                while True:
+                    self.check_alarms()
+                    sensor_state = read_touch_sensors()
+                    self.update_button_state_pi(sensor_state)
+                    self.handle_button_state_logic()
+                    time.sleep(0.1)
+
+        except KeyboardInterrupt:
+            print("[APP] KeyboardInterrupt -> Exiting application.")
+        finally:
             self.player.stop()
+            if RPI_HARDWARE:
+                GPIO.cleanup()
+
+    ###########################################################################
+    # On-Release Button Handling
+    ###########################################################################
+    def update_button_state_pygame(self, key, pressed):
+        for name, binding in KEY_BINDINGS.items():
+            if key == binding:
+                btn_state = self.button_states[name]
+                if pressed:
+                    if not btn_state["down"]:
+                        btn_state["down"] = True
+                        btn_state["time"] = time.time()  # mark press time
+                        btn_state["handled"] = False
+                else:
+                    # Key was released
+                    btn_state["down"] = False
+
+    def update_button_state_pi(self, sensor_state):
+        """
+        In Pi mode, sensor_state is a dict of booleans.
+        We'll do similar press/release tracking as pygame, checking each button.
+        """
+        for name in self.button_states.keys():
+            currently_pressed = sensor_state[name]
+            btn_state = self.button_states[name]
+            if currently_pressed and not btn_state["down"]:
+                # Just pressed
+                btn_state["down"] = True
+                btn_state["time"] = time.time()
+                btn_state["handled"] = False
+            elif not currently_pressed and btn_state["down"]:
+                # Just released
+                btn_state["down"] = False
+
+    def handle_button_state_logic(self):
+        """
+        Check each button's release, see if it's a short press or long press.
+        Also check if forward+backward were pressed simultaneously at any point.
+        """
+        # First, gather which buttons are currently pressed
+        pressed_buttons = [b for b, st in self.button_states.items() if st["down"]]
+
+        # If forward & backward are pressed right now, do nothing; we'll wait for release
+        # so we don't accidentally do next/previous. We'll only act on release detection.
+
+        # We'll track which buttons have been released in this loop:
+        released_buttons = []
+        for bname, st in self.button_states.items():
+            if not st["down"] and not st["handled"]:
+                # This means it was just released now
+                released_buttons.append(bname)
+
+        # If none were released, nothing to do
+        if not released_buttons:
+            return
+
+        # Check if forward and backward are both in released set => cycle alarm once
+        # But only if they were pressed at the same time (overlapping press).
+        # We'll confirm they actually overlapped in time for at least some fraction.
+        # A simpler approach: if both are in released_buttons, we do the alarm cycle.
+        # That prevents double-advancement. We'll then mark them as handled.
+        if "forward" in released_buttons and "backward" in released_buttons:
+            # Check overlap or at least that both were pressed before
+            fwd_down_time = self.button_states["forward"]["time"]
+            bwd_down_time = self.button_states["backward"]["time"]
+            # Rough check if they were pressed within ~0.2s of each other
+            # or if they were both "down" at once
+            # For a simpler approach, we just do the cycle once:
+            self.cycle_alarm_mode()
+            self.button_states["forward"]["handled"] = True
+            self.button_states["backward"]["handled"] = True
+            return
+
+        # Now handle each released button individually if not handled
+        for btn_name in released_buttons:
+            btn_state = self.button_states[btn_name]
+            if btn_state["handled"]:
+                continue  # already used in a combined press
+
+            press_duration = time.time() - btn_state["time"]
+
+            # Mark it handled so we don't process it more than once
+            btn_state["handled"] = True
+
+            if btn_name == "power":
+                self.handle_power_release()
+            elif btn_name == "source":
+                self.handle_source_release()
+            elif btn_name == "menu":
+                self.handle_menu_release(press_duration)
+            elif btn_name == "forward":
+                self.handle_forward_release()
+            elif btn_name == "backward":
+                self.handle_backward_release()
+
+    ###########################################################################
+    # Handle Individual Button Releases
+    ###########################################################################
+    def handle_power_release(self):
+        self.toggle_standby()
+
+    def handle_source_release(self):
+        if self.standby:
+            return
+        self.cycle_source()
+
+    def handle_menu_release(self, press_duration):
+        """
+        If press_duration exceeds LONG_PRESS_THRESHOLD => open menu
+        Otherwise, short-press could do some 'set' actions
+        """
+        if self.standby:
+            return
+        if press_duration >= LONG_PRESS_THRESHOLD:
+            # Long press => open/close menu
+            self.toggle_menu()
         else:
-            print("[APP] Waking up from standby => re-activating current source.")
-            self.switch_source(self.sources[self.current_source_idx])
+            # Short press => do something else
+            # For example "set" (like setting alarm time?), or just placeholder
+            print("[MENU] Short-press set action (placeholder).")
 
-    def cycle_source(self):
-        # Stop existing playback if we switch away from it
-        self.player.stop()
-        self.current_source_idx = (self.current_source_idx + 1) % len(self.sources)
-        self.current_source = self.sources[self.current_source_idx]
-        self.switch_source(self.current_source)
-
-    def switch_source(self, source_name):
-        """
-        Switch audio input to the specified source, possibly start playback.
-        """
-        print(f"[APP] Switching source => {source_name}")
-        if source_name == "RADIO":
-            self.update_radio_info()
-        elif source_name == "USB":
-            # No immediate playback. User picks file/folder in the USB view.
+    def handle_forward_release(self):
+        if self.standby:
+            return
+        # If user pressed forward alone, do normal next action
+        # If forward & backward were pressed simultaneously, that was handled above
+        src = self.sources[self.current_source_idx]
+        if src == "RADIO":
+            self.radio_search_up()
+        elif src == "USB":
+            self.usb_move_selection("down")
+        elif src == "INTERNET":
+            self.internet_radio_next()
+        elif src == "BLUETOOTH":
             pass
-        elif source_name == "INTERNET":
-            # Play the currently selected station
-            if self.stations:
-                name, url = self.stations[self.current_station_idx]
-                print(f"[APP] Internet radio => {name} | {url}")
-                self.player.play(url)
-        elif source_name == "BLUETOOTH":
-            # Typically rely on system-level BT sink. We do placeholder here.
-            print("[APP] Bluetooth source selected. Pair/connect externally.")
+
+    def handle_backward_release(self):
+        if self.standby:
+            return
+        src = self.sources[self.current_source_idx]
+        if src == "RADIO":
+            self.radio_search_down()
+        elif src == "USB":
+            self.usb_move_selection("up")
+        elif src == "INTERNET":
+            self.internet_radio_prev()
+        elif src == "BLUETOOTH":
+            pass
+
+    ###########################################################################
+    # Menu Handling
+    ###########################################################################
+    def enter_menu(self):
+        if not self.in_settings_menu:
+            self.in_settings_menu = True
+            print("[MENU] Entering settings menu... (placeholder)")
+
+    def exit_menu(self):
+        if self.in_settings_menu:
+            self.in_settings_menu = False
+            print("[MENU] Exiting settings menu.")
+
+    def toggle_menu(self):
+        if self.in_settings_menu:
+            self.exit_menu()
         else:
-            pass
+            self.enter_menu()
 
     ###########################################################################
-    # Radio
-    ###########################################################################
-    def update_radio_info(self):
-        """
-        Read the 'radio' (mock RDS) info.
-        """
-        self.radio_station_name, self.radio_station_text = read_radio_rds()
-        print(
-            f"[RADIO] Freq: {self.current_radio_freq} | Station: {self.radio_station_name} | Text: {self.radio_station_text}"
-        )
-
-    def radio_search_up(self):
-        self.current_radio_freq = search_radio("up")
-        self.update_radio_info()
-
-    def radio_search_down(self):
-        self.current_radio_freq = search_radio("down")
-        self.update_radio_info()
-
-    ###########################################################################
-    # Alarms
+    # Alarm Handling
     ###########################################################################
     def check_alarms(self):
         now = time.localtime()
@@ -460,6 +528,81 @@ class RadioWecker:
                 print("[ALARM] Wecker2 triggered => waking device.")
                 self.toggle_standby()
 
+    def cycle_alarm_mode(self):
+        """
+        0 => none,
+        1 => alarm1 only,
+        2 => alarm2 only,
+        3 => both
+        """
+        self.alarm_mode = (self.alarm_mode + 1) % 4
+        if self.alarm_mode == 0:
+            self.wecker1_active = False
+            self.wecker2_active = False
+            print("[ALARM] Both alarms off (mode=0).")
+        elif self.alarm_mode == 1:
+            self.wecker1_active = True
+            self.wecker2_active = False
+            print("[ALARM] Alarm1 on, Alarm2 off (mode=1).")
+        elif self.alarm_mode == 2:
+            self.wecker1_active = False
+            self.wecker2_active = True
+            print("[ALARM] Alarm1 off, Alarm2 on (mode=2).")
+        elif self.alarm_mode == 3:
+            self.wecker1_active = True
+            self.wecker2_active = True
+            print("[ALARM] Alarm1 on, Alarm2 on (mode=3).")
+
+    ###########################################################################
+    # Standby & Source
+    ###########################################################################
+    def toggle_standby(self):
+        self.standby = not self.standby
+        if self.standby:
+            print("[APP] Entering standby => stopping audio.")
+            self.player.stop()
+        else:
+            print("[APP] Waking up => re-activating current source.")
+            self.switch_source(self.sources[self.current_source_idx])
+
+    def cycle_source(self):
+        self.player.stop()
+        self.current_source_idx = (self.current_source_idx + 1) % len(self.sources)
+        self.current_source = self.sources[self.current_source_idx]
+        self.switch_source(self.current_source)
+
+    def switch_source(self, source_name):
+        print(f"[APP] Switching source => {source_name}")
+        if source_name == "RADIO":
+            self.update_radio_info()
+        elif source_name == "USB":
+            # No immediate playback, user picks file/folder
+            pass
+        elif source_name == "INTERNET":
+            if self.stations:
+                name, url = self.stations[self.current_station_idx]
+                print(f"[APP] Internet radio => {name} | {url}")
+                self.player.play(url)
+        elif source_name == "BLUETOOTH":
+            print("[APP] Bluetooth source selected. Pair/connect externally.")
+
+    ###########################################################################
+    # Radio
+    ###########################################################################
+    def update_radio_info(self):
+        self.radio_station_name, self.radio_station_text = read_radio_rds()
+        print(
+            f"[RADIO] Freq: {self.current_radio_freq} | Station: {self.radio_station_name} | Text: {self.radio_station_text}"
+        )
+
+    def radio_search_up(self):
+        self.current_radio_freq = search_radio("up")
+        self.update_radio_info()
+
+    def radio_search_down(self):
+        self.current_radio_freq = search_radio("down")
+        self.update_radio_info()
+
     ###########################################################################
     # USB
     ###########################################################################
@@ -467,9 +610,6 @@ class RadioWecker:
         self.usb_items = list_audio_files(self.current_usb_path)
 
     def usb_move_selection(self, direction: str):
-        """
-        direction = 'up' or 'down', shift the selection index.
-        """
         if not self.usb_items:
             return
         max_idx = len(self.usb_items) - 1
@@ -479,9 +619,6 @@ class RadioWecker:
             self.usb_selection_index = (self.usb_selection_index + 1) % (max_idx + 1)
 
     def usb_select_item(self):
-        """
-        Execute the 'menu press' behavior on the currently selected USB item.
-        """
         if not self.usb_items:
             return
         name, is_dir = self.usb_items[self.usb_selection_index]
@@ -493,7 +630,6 @@ class RadioWecker:
             self.usb_selection_index = 0
             return
         if name == "dieser Ordner":
-            # Play entire folder
             files_to_play = [
                 os.path.join(self.current_usb_path, itm[0])
                 for itm in self.usb_items
@@ -501,18 +637,14 @@ class RadioWecker:
             ]
             if files_to_play:
                 self.player.stop()
-                # Start playing first file
                 self.player.play(files_to_play[0])
-                # Additional logic could loop or queue in an advanced scenario
             return
         full_path = os.path.join(self.current_usb_path, name)
         if is_dir:
-            # Enter directory
             self.current_usb_path = full_path
             self.refresh_usb_items()
             self.usb_selection_index = 0
         else:
-            # Single file
             self.player.stop()
             self.player.play(full_path)
 
@@ -538,129 +670,23 @@ class RadioWecker:
         self.player.play(url)
 
     ###########################################################################
-    # Menu Toggling (Example)
-    ###########################################################################
-    def toggle_alarm1(self):
-        self.wecker1_active = not self.wecker1_active
-        print(f"[ALARM] Wecker1 => {self.wecker1_active}")
-
-    def toggle_alarm2(self):
-        self.wecker2_active = not self.wecker2_active
-        print(f"[ALARM] Wecker2 => {self.wecker2_active}")
-
-    ###########################################################################
-    # Main Loop
-    ###########################################################################
-    def run(self):
-        print("[APP] Starting main loop. Press Ctrl+C to exit.")
-        try:
-            if self.pc_mode and PYGAME_AVAILABLE:
-                while True:
-                    self.check_alarms()
-                    events = pygame.event.get()
-                    for ev in events:
-                        if ev.type == QUIT:
-                            pygame.quit()
-                            return
-                        if ev.type == KEYDOWN:
-                            self.handle_keypress(ev.key)
-                    self.draw_display()
-                    pygame.display.flip()
-                    self.clock.tick(10)  # ~10 FPS
-            else:
-                # Pi or no Pygame
-                while True:
-                    self.check_alarms()
-                    button_states = read_touch_sensors()
-                    self.handle_button_states(button_states)
-                    # On real hardware, you'd update OLED display here
-                    time.sleep(0.5)
-        except KeyboardInterrupt:
-            print("[APP] KeyboardInterrupt -> Exiting application.")
-        finally:
-            self.player.stop()
-            if RPI_HARDWARE:
-                GPIO.cleanup()
-
-    def handle_button_states(self, bs: dict):
-        """Handle the booleans from TTP223 sensors in Pi mode."""
-        if bs["power"]:
-            self.toggle_standby()
-            time.sleep(0.3)
-        if not self.standby:
-            if bs["source"]:
-                self.cycle_source()
-                time.sleep(0.3)
-            if bs["menu"]:
-                # For demonstration, toggle alarm1
-                self.toggle_alarm1()
-                time.sleep(0.3)
-            if bs["forward"]:
-                self.handle_forward()
-                time.sleep(0.3)
-            if bs["backward"]:
-                self.handle_backward()
-                time.sleep(0.3)
-
-    def handle_keypress(self, key):
-        """
-        PC_MODE: interpret key events as sensor presses.
-        """
-        if key == KEY_BINDINGS["power"]:
-            self.toggle_standby()
-        if self.standby:
-            return  # no further actions if in standby
-        if key == KEY_BINDINGS["source"]:
-            self.cycle_source()
-        elif key == KEY_BINDINGS["menu"]:
-            # Example: toggle alarm1
-            self.toggle_alarm1()
-        elif key == KEY_BINDINGS["forward"]:
-            self.handle_forward()
-        elif key == KEY_BINDINGS["backward"]:
-            self.handle_backward()
-
-    def handle_forward(self):
-        src = self.sources[self.current_source_idx]
-        if src == "RADIO":
-            self.radio_search_up()
-        elif src == "USB":
-            self.usb_move_selection("down")
-        elif src == "INTERNET":
-            self.internet_radio_next()
-        elif src == "BLUETOOTH":
-            pass
-
-    def handle_backward(self):
-        src = self.sources[self.current_source_idx]
-        if src == "RADIO":
-            self.radio_search_down()
-        elif src == "USB":
-            self.usb_move_selection("up")
-        elif src == "INTERNET":
-            self.internet_radio_prev()
-        elif src == "BLUETOOTH":
-            pass
-
-    ###########################################################################
-    # Display Rendering (PC_MODE with PyGame)
+    # Display Rendering (PC_MODE + PyGame Demo)
     ###########################################################################
     def draw_display(self):
         """
-        Render a 128x64 'virtual' screen, replicating the final device's layout:
-          - top row: source name (left), time (right), alarm icons
-          - main area: depends on source
-          - bottom row or corners: button press states (for debug)
+        Renders text info in PC_MODE using PyGame. For a real device with an I2C display,
+        you'd integrate an OLED or LCD library in place of or alongside this code.
+        If the display is not showing content, ensure pygame is installed and you
+        have a graphics environment. On a headless system, you might not see the window.
         """
         if not self.screen:
             return
-        # Create small surface for 128x64
         framesurf = pygame.Surface((DISPLAY_WIDTH, DISPLAY_HEIGHT))
         framesurf.fill((0, 0, 0))
         font_small = pygame.font.SysFont(None, 10)
         font_medium = pygame.font.SysFont(None, 12)
 
-        # 1) Top row
+        # Top row: source, time, alarm icons
         source_str = self.sources[self.current_source_idx]
         time_str = time.strftime("%H:%M", time.localtime())
         alarm_str = ""
@@ -669,88 +695,84 @@ class RadioWecker:
         if self.wecker2_active:
             alarm_str += "2"
 
-        # Draw source name top-left
         surf_source = font_medium.render(source_str, True, (255, 255, 255))
         framesurf.blit(surf_source, (0, 0))
 
-        # Draw alarm icons next to source (small bells or just "W1/W2"?)
         if alarm_str:
             surf_alarm = font_small.render(f"[{alarm_str}]", True, (255, 255, 255))
             framesurf.blit(surf_alarm, (len(source_str) * 6 + 2, 2))
 
-        # Draw time top-right
         surf_time = font_medium.render(time_str, True, (255, 255, 255))
         framesurf.blit(surf_time, (DISPLAY_WIDTH - surf_time.get_width(), 0))
 
-        # 2) Main area: depends on source
         main_y = 14
+        # Standby display
         if self.standby:
-            # Show "Standby" if user wants a standby display
             if self.show_clock_on_standby:
                 stand_surf = font_medium.render("Standby Mode", True, (200, 200, 200))
                 framesurf.blit(stand_surf, (0, main_y))
                 main_y += 12
-                # Show time bigger?
                 time_standby = time.strftime("%H:%M:%S", time.localtime())
                 time_surf = font_medium.render(time_standby, True, (255, 255, 255))
                 framesurf.blit(time_surf, (0, main_y))
-            # Nothing else
         else:
-            source = self.sources[self.current_source_idx]
-            if source == "RADIO":
-                # Display freq, station name, RDS text
-                line1 = f"Freq: {self.current_radio_freq:.2f} MHz"
-                line2 = f"Station: {self.radio_station_name}"
-                line3 = f"RDS: {self.radio_station_text}"
-                self._blit_line(framesurf, font_medium, line1, main_y)
-                main_y += 12
-                self._blit_line(framesurf, font_medium, line2, main_y)
-                main_y += 12
-                self._blit_line(framesurf, font_medium, line3, main_y)
-                main_y += 12
-
-            elif source == "USB":
-                # Show the 3-line file explorer
-                # The middle line is the "selected" item
-                if not self.usb_items:
-                    self._blit_line(framesurf, font_medium, "No items", main_y)
-                else:
-                    # We show up to 3 lines: index-1, index, index+1
-                    for offset in [-1, 0, 1]:
-                        idx = self.usb_selection_index + offset
-                        if 0 <= idx < len(self.usb_items):
-                            name, is_dir = self.usb_items[idx]
-                            marker = ">" if offset == 0 else " "
-                            label = name + ("/" if is_dir else "")
-                            self._blit_line(
-                                framesurf, font_medium, f"{marker}{label}", main_y
-                            )
-                            main_y += 12
-
-            elif source == "INTERNET":
-                # Show station name
-                if not self.stations:
-                    self._blit_line(
-                        framesurf, font_medium, "No internet stations loaded.", main_y
-                    )
-                else:
-                    station_name, station_url = self.stations[self.current_station_idx]
-                    self._blit_line(
-                        framesurf, font_medium, f"Station: {station_name}", main_y
-                    )
+            # If in menu, show a placeholder. Otherwise source-specific view.
+            if self.in_settings_menu:
+                menu_surf = font_medium.render(
+                    "Settings Menu...", True, (180, 180, 255)
+                )
+                framesurf.blit(menu_surf, (0, main_y))
+            else:
+                source = self.sources[self.current_source_idx]
+                if source == "RADIO":
+                    line1 = f"Freq: {self.current_radio_freq:.2f} MHz"
+                    line2 = f"Station: {self.radio_station_name}"
+                    line3 = f"RDS: {self.radio_station_text}"
+                    self._blit_line(framesurf, font_medium, line1, main_y)
                     main_y += 12
-                    self._blit_line(framesurf, font_small, station_url, main_y)
-                    main_y += 10
+                    self._blit_line(framesurf, font_medium, line2, main_y)
+                    main_y += 12
+                    self._blit_line(framesurf, font_medium, line3, main_y)
+                    main_y += 12
+                elif source == "USB":
+                    if not self.usb_items:
+                        self._blit_line(framesurf, font_medium, "No items", main_y)
+                    else:
+                        for offset in [-1, 0, 1]:
+                            idx = self.usb_selection_index + offset
+                            if 0 <= idx < len(self.usb_items):
+                                name, is_dir = self.usb_items[idx]
+                                marker = ">" if offset == 0 else " "
+                                label = name + ("/" if is_dir else "")
+                                self._blit_line(
+                                    framesurf, font_medium, f"{marker}{label}", main_y
+                                )
+                                main_y += 12
+                elif source == "INTERNET":
+                    if not self.stations:
+                        self._blit_line(
+                            framesurf,
+                            font_medium,
+                            "No internet stations loaded.",
+                            main_y,
+                        )
+                    else:
+                        station_name, station_url = self.stations[
+                            self.current_station_idx
+                        ]
+                        self._blit_line(
+                            framesurf, font_medium, f"Station: {station_name}", main_y
+                        )
+                        main_y += 12
+                        self._blit_line(framesurf, font_small, station_url, main_y)
+                elif source == "BLUETOOTH":
+                    self._blit_line(framesurf, font_medium, "Bluetooth Source", main_y)
+                    main_y += 12
+                    self._blit_line(
+                        framesurf, font_small, "(Pair externally...)", main_y
+                    )
 
-            elif source == "BLUETOOTH":
-                self._blit_line(framesurf, font_medium, "Bluetooth Source", main_y)
-                main_y += 12
-                self._blit_line(framesurf, font_small, "(Pair externally...)", main_y)
-                main_y += 10
-
-        # 3) Show small button press indicators at the bottom
-        # No actual states in PC mode, but let's show placeholders
-        # (In Pi mode, you'd read real sensor states)
+        # Bottom row: debug labels for buttons
         y_indicator = DISPLAY_HEIGHT - 8
         button_labels = ["Pwr", "Src", "Menu", "Fwd", "Bwd"]
         x_offset = 0
@@ -759,7 +781,6 @@ class RadioWecker:
             framesurf.blit(surf_b, (x_offset, y_indicator))
             x_offset += surf_b.get_width() + 4
 
-        # Scale up
         scaled_surf = pygame.transform.scale(
             framesurf,
             (DISPLAY_WIDTH * self.screen_scale, DISPLAY_HEIGHT * self.screen_scale),
@@ -767,9 +788,6 @@ class RadioWecker:
         self.screen.blit(scaled_surf, (0, 0))
 
     def _blit_line(self, surf, font, text, y):
-        """
-        Helper to draw a line of text on the given surface.
-        """
         render = font.render(text, True, (255, 255, 255))
         surf.blit(render, (0, y))
 
@@ -777,8 +795,6 @@ class RadioWecker:
 ###############################################################################
 # Main
 ###############################################################################
-
-
 def main():
     app = RadioWecker(pc_mode=PC_MODE)
     app.run()
