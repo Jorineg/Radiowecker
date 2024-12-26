@@ -62,9 +62,6 @@ class UIState:
         else:
             self.mode = UIMode.NORMAL
 
-        if self.get_current_source() == "INTERNET":
-            self.audio.play_station(self.audio.current_station)
-
     def toggle_standby(self):
         """Toggle standby mode"""
         self.standby = not self.standby
@@ -293,6 +290,13 @@ class UI:
                 self.settings.save_settings()
                 self.settings.reset_to_first()  # Reset position after saving
 
+
+    def next_source(self):
+        """Switch to next source"""
+        self.state.next_source()
+        if self.state.get_current_source() == "INTERNET":
+            self.audio.play_station(self.audio.current_station)
+
     def handle_browser_button(self, button: str, long_press: bool):
         """Handle button in file browser mode"""
         if button == "menu" and long_press:
@@ -306,14 +310,14 @@ class UI:
         elif button == "menu" and long_press:
             self.state.mode = UIMode.MENU
         elif button == "source":
-            self.state.next_source()
+            self.next_source()
 
     def handle_normal_button(self, button: str, long_press: bool):
         """Handle button in normal mode"""
         if button == "menu" and long_press:
             self.state.mode = UIMode.MENU
         elif button == "source":
-            self.state.next_source()
+            self.next_source()
         elif button == "forward":
             self.handle_forward()
         elif button == "backward":
