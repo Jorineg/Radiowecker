@@ -1,6 +1,5 @@
 # display.py
 
-import pygame
 from typing import Optional
 from pygame_manager import PygameManager
 
@@ -13,6 +12,7 @@ try:
 
     RPI_HARDWARE = True
 except ImportError:
+    import pygame
     RPI_HARDWARE = False
 
 from font_5x8 import FONT_5X8, get_char as get_char_5x8, get_text_width as get_text_width_5x8
