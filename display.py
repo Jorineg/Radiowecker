@@ -157,7 +157,8 @@ class OLEDDisplay(Display):
         super().__init__(width, height)
         if RPI_HARDWARE:
             serial = i2c(port=1, address=0x3C)
-            self.device = ssd1306(serial, width=width, height=height)
+            # self.device = ssd1306(serial, width=width, height=height)
+            self.device = ssd1306(serial)
         else:
             self.device = None
 
