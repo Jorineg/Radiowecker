@@ -99,7 +99,7 @@ class HardwareInput:
         """Setup GPIO pins for buttons"""
         GPIO.setmode(GPIO.BCM)
         for button in self.buttons.values():
-            GPIO.setup(button.pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            GPIO.setup(button.pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 
     def cleanup(self):
         """Cleanup GPIO and other resources"""
