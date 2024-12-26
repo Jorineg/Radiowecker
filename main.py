@@ -2,7 +2,6 @@
 
 import sys
 import time
-import signal
 import pygame
 from typing import Optional
 
@@ -12,6 +11,12 @@ from settings import Settings
 from ui import UI
 from hardware import HardwareInput, HardwareOutput, RPI_HARDWARE
 
+try:
+    import pygame  # Use pygame for Windows
+    RPI_HARDWARE = False
+except ImportError:
+    RPI_HARDWARE = True
+import signal
 
 class RadioWecker:
     def __init__(self):
