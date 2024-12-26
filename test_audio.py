@@ -5,7 +5,7 @@ import time
 def test_vlc():
     try:
         # Erstelle eine VLC Instance
-        instance = vlc.Instance()
+        instance = vlc.Instance("--aout=pulse")
         
         # Erstelle einen Media Player
         player = instance.media_player_new()
@@ -25,6 +25,11 @@ def test_vlc():
         
     except Exception as e:
         print(f"Fehler: {e}")
+        
+    finally:
+        player.stop()
+        player.release()
+        instance.release()
 
 # Alternative mit pygame (einfacher zu installieren)
 def test_pygame():

@@ -209,6 +209,14 @@ class AudioManager:
         if self.player:
             self.player.stop()
 
+    def cleanup(self):
+        """Cleanup resources"""
+        if self.player:
+            self.player.stop()
+            self.player.release()
+        if self.instance:
+            self.instance.release()
+
     def pause(self):
         """Toggle pause"""
         if self.player:

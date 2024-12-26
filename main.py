@@ -126,6 +126,7 @@ class RadioWecker:
         self.hardware_in.cleanup()
         self.hardware_out.cleanup()
         self.audio.stop()
+        self.audio.cleanup()
         self.settings.save_settings()
 
     def signal_handler(self, signum, frame):
