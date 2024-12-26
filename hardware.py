@@ -10,7 +10,7 @@ try:
 except ImportError:
     RPI_HARDWARE = False
     import pygame  # Use pygame for Windows
-import keyboard  # Keyboard library for PC testing
+    import keyboard  # Keyboard library for PC testing
 
 class Button:
     def __init__(self, pin: int, name: str):
