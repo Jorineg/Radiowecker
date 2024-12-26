@@ -62,6 +62,9 @@ class UIState:
         else:
             self.mode = UIMode.NORMAL
 
+        if self.get_current_source() == "INTERNET":
+            self.audio.play_station(self.audio.current_station)
+
     def toggle_standby(self):
         """Toggle standby mode"""
         self.standby = not self.standby
