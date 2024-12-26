@@ -79,14 +79,6 @@ class RadioWecker:
         # Enable/disable amp based on playing state
         self.hardware_out.set_amp_enable(self.ui.state.is_playing)
 
-        # Update source info if needed
-        source, name = self.audio.get_current_info()
-        if source:
-            if source == "RADIO":
-                self.ui.state.current_source = 0
-            elif source == "USB":
-                self.ui.state.current_source = 1
-
     def main_loop(self):
         """Main application loop"""
         last_time = time.time()

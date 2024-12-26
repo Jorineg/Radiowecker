@@ -5,6 +5,11 @@ import os
 from typing import List, Tuple, Optional
 from pathlib import Path
 
+BACK = "<zurück>"
+THIS_DIR = "<dieser Ordner>"
+
+FILE_PATH_PREFIX = "D:/"
+
 try:
     import vlc
 
@@ -20,9 +25,14 @@ class AudioStation:
 
 
 class AudioFile:
-    def __init__(self, path: str, is_dir: bool = False):
+    def __init__(self, path: str, is_dir: bool = False, name: str = None):
         self.path = path
-        self.name = os.path.basename(path)
+        self.is_special = False
+        if name:
+            self.is_special = True
+            self.name = name
+        else:
+            self.name = os.path.basename(path)
         self.is_dir = is_dir
 
 
@@ -30,7 +40,8 @@ class AudioManager:
     def __init__(self):
         self.instance = None
         self.player = None
-        self.volume = 50
+        self.media_list = None
+        self.list_player = None
 
         # Internet Radio
         self.stations: List[AudioStation] = []
@@ -43,7 +54,10 @@ class AudioManager:
         if VLC_AVAILABLE:
             self.instance = vlc.Instance()
             self.player = self.instance.media_player_new()
-            self.player.audio_set_volume(self.volume)
+            self.media_list = self.instance.media_list_new()
+            self.list_player = self.instance.media_list_player_new()
+            self.list_player.set_media_player(self.player)
+            self.player.audio_set_volume(100)
 
         # Load stations
         self.load_stations()
@@ -51,7 +65,8 @@ class AudioManager:
 
         # Scan directory
         self.scan_directory()
-        self.current_file = self.files[0]
+        self.current_file = self.files[0] if len(self.files) > 0 else None
+        # self.current_file = None
 
     def load_stations(self, filename: str = "stations.csv"):
         """Load internet radio stations from CSV file"""
@@ -81,7 +96,7 @@ class AudioManager:
         # Add parent directory if not in root
         if self.current_dir != "/":
             parent = str(Path(self.current_dir).parent)
-            self.files.append(AudioFile(parent, is_dir=True))
+            self.files.append(AudioFile(parent, is_dir=True, name=BACK))
 
         try:
             # Add directories first
@@ -102,6 +117,52 @@ class AudioManager:
         except Exception as e:
             print(f"Error scanning directory: {e}")
 
+        # Add current directory
+        self.files.append(AudioFile(self.current_dir, is_dir=True, name=THIS_DIR))
+
+    def _create_playlist_from_file(self, start_file: AudioFile):
+        """Create a playlist starting from the given file, excluding directories and special files"""
+        # Clear existing media list
+        self.media_list.lock()
+        while self.media_list.count() > 0:
+            self.media_list.remove_index(0)
+
+        # Find all playable files (not directories or special files)
+        playable_files = [f for f in self.files if not f.is_dir and not f.is_special]
+
+        if not playable_files:
+            self.media_list.unlock()
+            return False
+
+        # If start_file is a directory, start from first file in that directory
+        if start_file.is_dir:
+            # Scan the directory
+            old_dir = self.current_dir
+            self.scan_directory(start_file.path)
+            playable_files = [f for f in self.files if not f.is_dir and not f.is_special]
+            if not playable_files:
+                self.scan_directory(old_dir)
+                self.media_list.unlock()
+                return False
+            start_file = playable_files[0]
+
+        # Find the start index
+        try:
+            start_idx = playable_files.index(start_file)
+        except ValueError:
+            start_idx = 0
+
+        # Create the playlist starting from start_file
+        playlist_order = playable_files[start_idx:] + playable_files[:start_idx]
+
+        # Add files to media list
+        for file in playlist_order:
+            media = self.instance.media_new(FILE_PATH_PREFIX + file.path)
+            self.media_list.add_media(media)
+
+        self.media_list.unlock()
+        return True
+
     def play_station(self, station: AudioStation):
         """Play internet radio station"""
         if not self.player:
@@ -119,16 +180,16 @@ class AudioManager:
 
     def play_file(self, audio_file: AudioFile):
         """Play audio file"""
-        if not self.player or audio_file.is_dir:
+        if not self.player:
             return
 
         self.current_file = audio_file
         self.current_station = None
 
         try:
-            media = self.instance.media_new(audio_file.path)
-            self.player.set_media(media)
-            self.player.play()
+            if self._create_playlist_from_file(audio_file):
+                self.list_player.set_media_list(self.media_list)
+                self.list_player.play()
         except Exception as e:
             print(f"Error playing file: {e}")
 
@@ -162,10 +223,17 @@ class AudioManager:
 
     def navigate_to(self, audio_file: AudioFile):
         """Navigate to directory or play file"""
-        if audio_file.is_dir:
+        if audio_file.is_dir and not audio_file.is_special:
             self.scan_directory(audio_file.path)
+            return True
+        elif audio_file.is_special and audio_file.name == BACK:
+            # go to parent directory
+            parent = str(Path(self.current_dir).parent)
+            self.scan_directory(parent)
+            return True
         else:
             self.play_file(audio_file)
+            return False
 
     def get_current_files(self) -> List[AudioFile]:
         """Get files in current directory"""

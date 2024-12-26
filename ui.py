@@ -24,13 +24,11 @@ class UIState:
         self.standby = False
 
         # Sources
-        self.sources = ["RADIO", "USB", "INTERNET", "BLUETOOTH"]
+        self.sources = ["RADIO", "USB", "INTERNET", "BLUETOOTH", "ALARMS"]
         self.current_source = 0
 
         # File browser state
-        self.file_list_offset = 0
-        self.selected_file_idx = 0
-        self.files_per_page = 3
+        self.selected_file_idx = 1
 
         # Menu state
         self.menu_title = ""
@@ -58,6 +56,11 @@ class UIState:
     def next_source(self):
         """Switch to next source"""
         self.current_source = (self.current_source + 1) % len(self.sources)
+        print("Switched to source:", self.get_current_source())
+        if self.get_current_source() == "USB":
+            self.mode = UIMode.FILE_BROWSER
+        else:
+            self.mode = UIMode.NORMAL
 
     def toggle_standby(self):
         """Toggle standby mode"""
@@ -157,6 +160,9 @@ class UI:
         y = self.state.CONTENT_START
         source = self.state.get_current_source()
 
+        # print("current station: " + self.audio.current_station.name)
+
+
         if source == "RADIO":
             # Show frequency
             freq = "101.5 MHz"  # Get from radio module
@@ -176,6 +182,15 @@ class UI:
             # Show BT status
             status = "Connected"  # Get from BT module
             self.display.buffer.draw_text(0, y, status)
+
+        elif source == "ALARMS":
+            # Show alarm times
+            alarm_1 = f"{self.settings.get_value('Wecker1 Stunden'):02d}:{self.settings.get_value('Wecker1 Minuten'):02d}"
+            alarm_2 = f"{self.settings.get_value('Wecker2 Stunden'):02d}:{self.settings.get_value('Wecker2 Minuten'):02d}"
+            self.display.buffer.draw_text(0, y, f"Alarm 1: {alarm_1}")
+            y += 10
+            self.display.buffer.draw_text(0, y, f"Alarm 2: {alarm_2}")
+            y += 10
 
     def render_menu(self):
         """Render settings menu"""
@@ -220,19 +235,17 @@ class UI:
         y = self.state.CONTENT_START
         files = self.audio.get_current_files()
 
-        # Calculate visible range
-        start_idx = self.state.file_list_offset
-        end_idx = min(start_idx + self.state.files_per_page, len(files))
-
+        get_file = lambda i: files[i%len(files)]
+       
         # Draw visible files
-        for i in range(start_idx, end_idx):
-            file = files[i]
-            # Highlight selected
-            inverted = i == self.state.selected_file_idx
+        # always three rows, selected file is in the middle
+        for i in range(self.state.selected_file_idx - 1, self.state.selected_file_idx + 4):
+            file = get_file(i)
+            highlight = i == self.state.selected_file_idx
 
             # Add folder indicator
-            name = f"[{file.name}]" if file.is_dir else file.name
-            self.display.buffer.draw_text(0, y, name, inverted)
+            name = f"[{file.name}]" if file.is_dir and not file.is_special else file.name
+            self.display.buffer.draw_text(0, y, (">" if highlight else " ") + name)
             y += 10
 
     def render_standby_clock(self):
@@ -285,14 +298,17 @@ class UI:
             self.select_next_file()
         elif button == "backward":
             self.select_prev_file()
-        elif button == "menu":
+        elif button == "menu" and not long_press:
             self.select_file()
+        elif button == "menu" and long_press:
+            self.state.mode = UIMode.MENU
+        elif button == "source":
+            self.state.next_source()
 
     def handle_normal_button(self, button: str, long_press: bool):
         """Handle button in normal mode"""
         if button == "menu" and long_press:
             self.state.mode = UIMode.MENU
-            self.settings.reset_to_first()  # Reset to first item when entering menu
         elif button == "source":
             self.state.next_source()
         elif button == "forward":
@@ -313,6 +329,9 @@ class UI:
                 idx = stations.index(self.audio.current_station)
                 next_station = stations[(idx + 1) % len(stations)]
                 self.audio.play_station(next_station)
+        elif source == "ALARMS":
+            # cycle through alarms
+            self.state.alarm_mode = (self.state.alarm_mode + 1) % 4
 
     def handle_backward(self):
         """Handle backward in normal mode"""
@@ -333,27 +352,14 @@ class UI:
         files = self.audio.get_current_files()
         if not files:
             return
-
         self.state.selected_file_idx = (self.state.selected_file_idx + 1) % len(files)
-
-        # Scroll if needed
-        if (
-            self.state.selected_file_idx
-            >= self.state.file_list_offset + self.state.files_per_page
-        ):
-            self.state.file_list_offset += 1
 
     def select_prev_file(self):
         """Select previous file in browser"""
         files = self.audio.get_current_files()
         if not files:
             return
-
         self.state.selected_file_idx = (self.state.selected_file_idx - 1) % len(files)
-
-        # Scroll if needed
-        if self.state.selected_file_idx < self.state.file_list_offset:
-            self.state.file_list_offset -= 1
 
     def select_file(self):
         """Select current file in browser"""
@@ -362,8 +368,9 @@ class UI:
             return
 
         file = files[self.state.selected_file_idx]
-        self.audio.navigate_to(file)
+        if self.audio.navigate_to(file):
+            self.state.selected_file_idx = 1
 
         # Exit browser if we selected a file (not dir)
-        if not file.is_dir:
-            self.state.mode = UIMode.NORMAL
+        # if not file.is_dir:
+        #     self.state.mode = UIMode.NORMAL
