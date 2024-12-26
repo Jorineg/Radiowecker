@@ -5,7 +5,7 @@ import time
 def test_vlc():
     try:
         # Erstelle eine VLC Instance
-        instance = vlc.Instance("--aout=pulse")
+        instance = vlc.Instance('--verbose=2', "--aout=pulse")
         
         # Erstelle einen Media Player
         player = instance.media_player_new()
