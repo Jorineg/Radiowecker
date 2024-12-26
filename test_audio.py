@@ -11,7 +11,7 @@ def test_vlc():
         player = instance.media_player_new()
         
         # Lade eine Audiodatei (ersetze mit deinem Pfad)
-        media = instance.media_new("/path/to/your/audiofile.mp3")
+        media = instance.media_new("a.mp3")
         player.set_media(media)
         
         # Starte Wiedergabe
