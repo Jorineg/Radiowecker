@@ -146,7 +146,7 @@ class HardwareInput:
         for name, button in self.buttons.items():
             # Read button state (inverted because of pull-up)
             state = not GPIO.input(button.pin)
-            self.process_button_state(name, button, state)
+            self.process_button_state(name, button, not state)
 
     def check_keyboard(self):
         """Check keyboard input for PC testing - sensor-like implementation"""
