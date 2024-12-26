@@ -60,7 +60,7 @@ class AudioManager:
         # Initialize VLC if available
         if VLC_AVAILABLE:
             if RPI_HARDWARE:
-                self.instance = vlc.Instance("--aout=pulse")
+                self.instance = vlc.Instance("--aout=pulse", "--verbose=2")
             else:
                 self.instance = vlc.Instance()
             self.player = self.instance.media_player_new()
@@ -69,6 +69,8 @@ class AudioManager:
             self.list_player = self.instance.media_list_player_new()
             self.list_player.set_media_player(self.player)
             self.player.audio_set_volume(100)
+        else:
+            print("VLC not available")
 
         # Load stations
         self.load_stations()
