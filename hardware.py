@@ -164,6 +164,7 @@ class HardwareInput:
 class HardwareOutput:
     def __init__(self):
         if RPI_HARDWARE:
+            GPIO.setmode(GPIO.BCM)
             # Setup PWM pins for display brightness and audio amp enable
             GPIO.setup(18, GPIO.OUT)  # Display brightness
             GPIO.setup(25, GPIO.OUT)  # Amp enable
