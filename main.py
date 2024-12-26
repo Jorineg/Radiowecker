@@ -2,7 +2,6 @@
 
 import sys
 import time
-import pygame
 from typing import Optional
 
 from display import Display, PygameDisplay, OLEDDisplay
