@@ -72,9 +72,9 @@ class HardwareInput:
 
         # Button definitions
         self.buttons = {
-            "power": Button(23, "Power"),
+            "power": Button(22, "Power"),
             "menu": Button(27, "Menu"),
-            "source": Button(22, "Source"),
+            "source": Button(23, "Source"),
             "forward": Button(17, "Forward"),
             "backward": Button(24, "Backward"),
         }
