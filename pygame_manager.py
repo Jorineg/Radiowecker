@@ -1,6 +1,9 @@
 # pygame_manager.py
 
-import pygame
+try:
+    import pygame
+except ImportError:
+    pass
 
 class PygameManager:
     _instance = None
