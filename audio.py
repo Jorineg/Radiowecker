@@ -17,6 +17,13 @@ try:
 except ImportError:
     VLC_AVAILABLE = False
 
+try:
+    import RPi.GPIO as GPIO
+
+    RPI_HARDWARE = True
+except ImportError:
+    RPI_HARDWARE = False
+
 
 class AudioStation:
     def __init__(self, name: str, url: str):
@@ -52,8 +59,12 @@ class AudioManager:
 
         # Initialize VLC if available
         if VLC_AVAILABLE:
-            self.instance = vlc.Instance()
+            if RPI_HARDWARE:
+                self.instance = vlc.Instance("--aout=pulse")
+            else:
+                self.instance = vlc.Instance()
             self.player = self.instance.media_player_new()
+            
             self.media_list = self.instance.media_list_new()
             self.list_player = self.instance.media_list_player_new()
             self.list_player.set_media_player(self.player)
