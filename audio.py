@@ -2,8 +2,12 @@
 
 import csv
 import os
+import threading
 from typing import List, Tuple, Optional
 from pathlib import Path
+from queue import Queue
+from dataclasses import dataclass
+from enum import Enum, auto
 
 BACK = "<zurück>"
 THIS_DIR = "<dieser Ordner>"
@@ -43,12 +47,29 @@ class AudioFile:
         self.is_dir = is_dir
 
 
+class AudioCommandType(Enum):
+    PLAY_STATION = auto()
+    PLAY_FILE = auto()
+    STOP = auto()
+    TOGGLE_PAUSE = auto()
+
+
+@dataclass
+class AudioCommand:
+    command_type: AudioCommandType
+    data: any = None
+
+
 class AudioManager:
     def __init__(self):
         self.instance = None
         self.player = None
         self.media_list = None
         self.list_player = None
+        self.command_queue = Queue()
+        self._running = True
+        self._command_thread = threading.Thread(target=self._process_commands, daemon=True)
+        self._command_thread.start()
 
         # Internet Radio
         self.stations: List[AudioStation] = []
@@ -78,7 +99,6 @@ class AudioManager:
         # Scan directory
         self.scan_directory()
         self.current_file = self.files[0] if len(self.files) > 0 else None
-        # self.current_file = None
 
     def load_stations(self, filename: str = "stations.csv"):
         """Load internet radio stations from CSV file"""
@@ -132,6 +152,79 @@ class AudioManager:
         # Add current directory
         self.files.append(AudioFile(self.current_dir, is_dir=True, name=THIS_DIR))
 
+    def _process_commands(self):
+        while self._running:
+            try:
+                command = self.command_queue.get(timeout=0.5)
+                if command.command_type == AudioCommandType.PLAY_STATION:
+                    self._play_station(command.data)
+                elif command.command_type == AudioCommandType.PLAY_FILE:
+                    self._play_file(command.data)
+                elif command.command_type == AudioCommandType.STOP:
+                    self._stop()
+                elif command.command_type == AudioCommandType.TOGGLE_PAUSE:
+                    self._toggle_pause()
+                self.command_queue.task_done()
+            except Queue.Empty:
+                continue
+
+    def play_station(self, station: AudioStation):
+        self.command_queue.put(AudioCommand(AudioCommandType.PLAY_STATION, station))
+
+    def play_file(self, file: AudioFile):
+        self.command_queue.put(AudioCommand(AudioCommandType.PLAY_FILE, file))
+
+    def stop(self):
+        self.command_queue.put(AudioCommand(AudioCommandType.STOP))
+
+    def toggle_pause(self):
+        self.command_queue.put(AudioCommand(AudioCommandType.TOGGLE_PAUSE))
+
+    def _play_station(self, station: AudioStation):
+        if not self.player:
+            print("VLC not initialized... returning")
+            return
+
+        self.current_station = station
+        self.current_file = None
+
+        try:
+            # Stop any existing playback
+            self.stop()
+            
+            # Create media without additional options (they're already set in the instance)
+            media = self.instance.media_new(station.url)
+            self.player.set_media(media)
+            self.player.play()
+            print(f"Playing station: {station.name}. VLC play() called")
+        except Exception as e:
+            print(f"Error playing station: {e}")
+
+    def _play_file(self, file: AudioFile):
+        if not self.player:
+            return
+
+        self.current_file = file
+        self.current_station = None
+
+        try:
+            if self._create_playlist_from_file(file):
+                self.list_player.set_media_list(self.media_list)
+                self.list_player.play()
+        except Exception as e:
+            print(f"Error playing file: {e}")
+
+    def _stop(self):
+        if self.player:
+            self.player.stop()
+
+    def _toggle_pause(self):
+        if self.player:
+            if self.player.is_playing():
+                self.player.pause()
+            else:
+                self.player.play()
+
     def _create_playlist_from_file(self, start_file: AudioFile):
         """Create a playlist starting from the given file, excluding directories and special files"""
         # Clear existing media list
@@ -175,77 +268,14 @@ class AudioManager:
         self.media_list.unlock()
         return True
 
-    def play_station(self, station: AudioStation):
-        """Play internet radio station"""
-        if not self.player:
-            print("VLC not initialized... returning")
-            return
-
-        self.current_station = station
-        self.current_file = None
-
-        try:
-            # Stop any existing playback
-            self.stop()
-            
-            # Create media without additional options (they're already set in the instance)
-            media = self.instance.media_new(station.url)
-            self.player.set_media(media)
-            self.player.play()
-            print(f"Playing station: {station.name}. VLC play() called")
-        except Exception as e:
-            print(f"Error playing station: {e}")
-
-    def play_file(self, audio_file: AudioFile):
-        """Play audio file"""
-        if not self.player:
-            return
-
-        self.current_file = audio_file
-        self.current_station = None
-
-        try:
-            if self._create_playlist_from_file(audio_file):
-                self.list_player.set_media_list(self.media_list)
-                self.list_player.play()
-        except Exception as e:
-            print(f"Error playing file: {e}")
-
-    def stop(self):
-        """Stop playback"""
-        if self.player:
-            self.player.stop()
-
     def cleanup(self):
-        """Cleanup resources"""
+        self._running = False
+        if self._command_thread.is_alive():
+            self._command_thread.join(timeout=1.0)
         if self.player:
             self.player.stop()
-            self.player.release()
         if self.instance:
             self.instance.release()
-
-    def pause(self):
-        """Toggle pause"""
-        if self.player:
-            self.player.pause()
-
-    def set_volume(self, volume: int):
-        """Set volume (0-100)"""
-        self.volume = max(0, min(100, volume))
-        if self.player:
-            self.player.audio_set_volume(self.volume)
-
-    def is_playing(self) -> bool:
-        """Check if currently playing"""
-        return self.player and self.player.is_playing() == 1
-
-    def get_current_info(self) -> Tuple[str, str]:
-        """Get current playing info (source, name)"""
-        if self.current_station:
-            return "RADIO", self.current_station.name
-        elif self.current_file:
-            return "USB", self.current_file.name
-        return "", ""
 
     def navigate_to(self, audio_file: AudioFile):
         """Navigate to directory or play file"""
@@ -268,3 +298,21 @@ class AudioManager:
     def get_stations(self) -> List[AudioStation]:
         """Get available radio stations"""
         return self.stations
+
+    def is_playing(self) -> bool:
+        """Check if currently playing"""
+        return self.player and self.player.is_playing() == 1
+
+    def get_current_info(self) -> Tuple[str, str]:
+        """Get current playing info (source, name)"""
+        if self.current_station:
+            return "RADIO", self.current_station.name
+        elif self.current_file:
+            return "USB", self.current_file.name
+        return "", ""
+
+    def set_volume(self, volume: int):
+        """Set volume (0-100)"""
+        self.volume = max(0, min(100, volume))
+        if self.player:
+            self.player.audio_set_volume(self.volume)

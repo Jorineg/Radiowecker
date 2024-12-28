@@ -3,7 +3,6 @@
 import time
 from typing import List, Tuple, Optional
 from enum import Enum
-import threading
 
 
 class UIMode(Enum):
