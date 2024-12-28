@@ -165,7 +165,7 @@ class AudioManager:
                 elif command.command_type == AudioCommandType.TOGGLE_PAUSE:
                     self._toggle_pause()
                 self.command_queue.task_done()
-            except Queue.Empty:
+            except queue.Empty:
                 continue
 
     def play_station(self, station: AudioStation):
