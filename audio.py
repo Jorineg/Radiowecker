@@ -5,7 +5,7 @@ import os
 import threading
 from typing import List, Tuple, Optional
 from pathlib import Path
-from queue import Queue
+from queue import Queue, Empty
 from dataclasses import dataclass
 from enum import Enum, auto
 
@@ -67,9 +67,6 @@ class AudioManager:
         self.media_list = None
         self.list_player = None
         self.command_queue = Queue()
-        self._running = True
-        self._command_thread = threading.Thread(target=self._process_commands, daemon=True)
-        self._command_thread.start()
 
         # Internet Radio
         self.stations: List[AudioStation] = []
@@ -152,10 +149,11 @@ class AudioManager:
         # Add current directory
         self.files.append(AudioFile(self.current_dir, is_dir=True, name=THIS_DIR))
 
-    def _process_commands(self):
-        while self._running:
-            try:
-                command = self.command_queue.get(timeout=0.5)
+    def process_commands(self):
+        """Process any pending audio commands - should be called from main thread"""
+        try:
+            while True:  # Process all pending commands
+                command = self.command_queue.get_nowait()
                 if command.command_type == AudioCommandType.PLAY_STATION:
                     self._play_station(command.data)
                 elif command.command_type == AudioCommandType.PLAY_FILE:
@@ -165,8 +163,8 @@ class AudioManager:
                 elif command.command_type == AudioCommandType.TOGGLE_PAUSE:
                     self._toggle_pause()
                 self.command_queue.task_done()
-            except queue.Empty:
-                continue
+        except Empty:
+            pass  # No more commands to process
 
     def play_station(self, station: AudioStation):
         self.command_queue.put(AudioCommand(AudioCommandType.PLAY_STATION, station))
@@ -269,9 +267,7 @@ class AudioManager:
         return True
 
     def cleanup(self):
-        self._running = False
-        if self._command_thread.is_alive():
-            self._command_thread.join(timeout=1.0)
+        """Cleanup resources"""
         if self.player:
             self.player.stop()
         if self.instance:

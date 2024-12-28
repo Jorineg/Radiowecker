@@ -86,39 +86,23 @@ class RadioWecker:
     def main_loop(self):
         """Main application loop"""
         last_time = time.time()
-        update_interval = 0.1  # 100ms for normal updates
-        frame_interval = 0.033  # ~30 FPS for display
-
-        last_frame_time = time.time()
 
         while self.running:
             current_time = time.time()
-
-            # Process pygame events every frame to keep Windows happy
-            if not self.is_pi:
-                try:
-                    for event in pygame.event.get():
-                        if event.type == pygame.QUIT:
-                            self.running = False
-                except:
-                    pass  # Ignore any pygame errors
-
-            # Update display at frame rate
-            if current_time - last_frame_time >= frame_interval:
-                try:
-                    self.ui.render()
-                    last_frame_time = current_time
-                except:
-                    pass  # Ignore any display errors
-
-            # Update logic at normal rate
-            if current_time - last_time >= update_interval:
+            if current_time - last_time >= 1:
                 self.check_alarms()
                 self.update_status()
                 last_time = current_time
 
-            # Small sleep to prevent CPU overuse
-            time.sleep(1)
+            # Process any pending audio commands
+            self.audio.process_commands()
+
+            # Update display
+            self.ui.render()
+            self.display.show()
+
+            # Small sleep to prevent busy waiting
+            time.sleep(0.01)
 
     def cleanup(self):
         """Cleanup on exit"""
