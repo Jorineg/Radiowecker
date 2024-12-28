@@ -118,7 +118,7 @@ class RadioWecker:
                 last_time = current_time
 
             # Small sleep to prevent CPU overuse
-            time.sleep(0.01)
+            time.sleep(1)
 
     def cleanup(self):
         """Cleanup on exit"""
@@ -131,7 +131,8 @@ class RadioWecker:
 
     def signal_handler(self, signum, frame):
         """Handle system signals"""
-        self.running = False
+        self.cleanup()
+        sys.exit(0)
 
 
 def main():

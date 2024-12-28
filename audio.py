@@ -68,7 +68,6 @@ class AudioManager:
             self.media_list = self.instance.media_list_new()
             self.list_player = self.instance.media_list_player_new()
             self.list_player.set_media_player(self.player)
-            self.player.audio_set_volume(100)
         else:
             print("VLC not available")
 
@@ -179,6 +178,7 @@ class AudioManager:
     def play_station(self, station: AudioStation):
         """Play internet radio station"""
         if not self.player:
+            print("VLC not initialized... returning")
             return
 
         self.current_station = station
@@ -192,6 +192,7 @@ class AudioManager:
             media = self.instance.media_new(station.url)
             self.player.set_media(media)
             self.player.play()
+            print(f"Playing station: {station.name}. VLC play() called")
         except Exception as e:
             print(f"Error playing station: {e}")
 
