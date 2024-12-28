@@ -8,6 +8,8 @@ from pathlib import Path
 from queue import Queue, Empty
 from dataclasses import dataclass
 from enum import Enum, auto
+import subprocess
+
 
 BACK = "<zurück>"
 THIS_DIR = "<dieser Ordner>"
@@ -68,6 +70,17 @@ class AudioManager:
         self.list_player = None
         self.command_queue = Queue()
 
+        if RPI_HARDWARE:
+            try:
+                print("Initializing audio device...")
+                # Ensure device is unmuted and at proper sample rate
+                subprocess.run(['amixer', 'sset', 'PCM', 'unmute'], check=False)
+                subprocess.run(['amixer', 'sset', 'PCM', '100%'], check=False)
+                # Set default sample rate
+                subprocess.run(['hw_params', '-r44100', 'hw:0'], check=False)
+            except Exception as e:
+                print(f"Warning: Could not initialize audio device: {e}")
+
         # Internet Radio
         self.stations: List[AudioStation] = []
 
@@ -78,7 +91,7 @@ class AudioManager:
         # Initialize VLC if available
         if VLC_AVAILABLE:
             if RPI_HARDWARE:
-                self.instance = vlc.Instance("--aout=pulse", "--verbose=2", "--network-caching=1000")
+                self.instance = vlc.Instance("--aout=pulse", "--verbose=2", "--network-caching=1000", "--sout-keep", "--audio-resampler=soxr", "--rate=44100")
             else:
                 self.instance = vlc.Instance()
             self.player = self.instance.media_player_new()

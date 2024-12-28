@@ -8,6 +8,7 @@ from display import Display, PygameDisplay, OLEDDisplay
 from audio import AudioManager
 from settings import Settings
 from ui import UI
+import subprocess
 from hardware import HardwareInput, HardwareOutput, RPI_HARDWARE
 
 try:
@@ -112,6 +113,14 @@ class RadioWecker:
         self.audio.stop()
         self.audio.cleanup()
         self.settings.save_settings()
+
+        if RPI_HARDWARE:
+            print("Resetting pulseaudio state...")
+            try:
+                subprocess.run(['pacmd', 'unload-module', 'module-null-sink'], check=False)
+                subprocess.run(['pacmd', 'set-default-sink', '0'], check=False)
+            except Exception as e:
+                print(f"Error resetting pulseaudio: {e}")
 
     def signal_handler(self, signum, frame):
         """Handle system signals"""
