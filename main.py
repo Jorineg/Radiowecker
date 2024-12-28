@@ -118,7 +118,7 @@ class RadioWecker:
                 last_time = current_time
 
             # Small sleep to prevent CPU overuse
-            time.sleep(0.001)
+            time.sleep(0.01)
 
     def cleanup(self):
         """Cleanup on exit"""

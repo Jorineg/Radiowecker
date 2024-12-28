@@ -60,7 +60,7 @@ class AudioManager:
         # Initialize VLC if available
         if VLC_AVAILABLE:
             if RPI_HARDWARE:
-                self.instance = vlc.Instance("--aout=pulse", "--verbose=2")
+                self.instance = vlc.Instance("--aout=pulse", "--verbose=2", "--network-caching=1000")
             else:
                 self.instance = vlc.Instance()
             self.player = self.instance.media_player_new()
@@ -185,6 +185,10 @@ class AudioManager:
         self.current_file = None
 
         try:
+            # Stop any existing playback
+            self.stop()
+            
+            # Create media without additional options (they're already set in the instance)
             media = self.instance.media_new(station.url)
             self.player.set_media(media)
             self.player.play()
