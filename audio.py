@@ -270,8 +270,17 @@ class AudioManager:
         """Cleanup resources"""
         if self.player:
             self.player.stop()
+            self.player.release()
+            self.player = None
+        if self.list_player:
+            self.list_player.release()
+            self.list_player = None
+        if self.media_list:
+            self.media_list.release()
+            self.media_list = None
         if self.instance:
             self.instance.release()
+            self.instance = None
 
     def navigate_to(self, audio_file: AudioFile):
         """Navigate to directory or play file"""
