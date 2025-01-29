@@ -14,7 +14,7 @@ def test_vlc():
         media = instance.media_new("ABBA - Mamma Mia.mp3")
         player.set_media(media)
 
-        player.audio_set_volume(20)
+        player.audio_set_volume(50)
         
         # Starte Wiedergabe
         player.play()
