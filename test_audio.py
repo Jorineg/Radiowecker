@@ -13,6 +13,8 @@ def test_vlc():
         # Lade eine Audiodatei (ersetze mit deinem Pfad)
         media = instance.media_new("ABBA - Mamma Mia.mp3")
         player.set_media(media)
+
+        player.audio_set_volume(20)
         
         # Starte Wiedergabe
         player.play()
