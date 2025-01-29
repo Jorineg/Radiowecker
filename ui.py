@@ -260,7 +260,7 @@ class UI:
         """Handle button press"""
         if button == "power":
             self.state.toggle_standby()
-            self.hardware_out.set_amp_enable(self.state.standby)
+            self.hardware_out.set_amp_enable(not self.state.standby)
             return
 
         if self.state.standby:
