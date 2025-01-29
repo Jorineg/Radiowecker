@@ -43,8 +43,8 @@ class RadioWecker:
         # Create other components
         self.settings = Settings()
         self.audio = AudioManager()
-        self.ui = UI(self.display, self.settings, self.audio)
         self.hardware_out = HardwareOutput()
+        self.ui = UI(self.display, self.settings, self.audio, self.hardware_out)
 
         # Setup hardware input with UI callback
         self.hardware_in = HardwareInput(self.ui.handle_button)
@@ -82,7 +82,7 @@ class RadioWecker:
         self.ui.state.is_playing = self.audio.is_playing()
 
         # Enable/disable amp based on playing state
-        self.hardware_out.set_amp_enable(self.ui.state.is_playing)
+        # self.hardware_out.set_amp_enable(self.ui.state.is_playing)
 
     def main_loop(self):
         """Main application loop"""

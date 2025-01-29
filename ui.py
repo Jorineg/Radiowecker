@@ -67,12 +67,13 @@ class UIState:
 
 
 class UI:
-    def __init__(self, display, settings, audio):
+    def __init__(self, display, settings, audio, hardware_out):
         self.display = display
         self.settings = settings
         self.audio = audio
         self.state = UIState()
         self.hardware_in = None  # Will be set from outside
+        self.hardware_out = hardware_out
 
     def set_hardware_input(self, hardware_in):
         """Set hardware input reference to get button states"""
@@ -259,6 +260,7 @@ class UI:
         """Handle button press"""
         if button == "power":
             self.state.toggle_standby()
+            self.hardware_out.set_amp_enable(self.state.standby)
             return
 
         if self.state.standby:
