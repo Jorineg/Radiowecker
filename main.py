@@ -59,7 +59,7 @@ class RadioWecker:
         display_settings = self.settings.get_display_settings()
 
         # Set display brightness
-        self.hardware_out.set_display_brightness(display_settings["brightness"])
+        # self.hardware_out.set_display_brightness(display_settings["brightness"])
 
     def check_alarms(self):
         """Check and handle alarms"""
@@ -103,7 +103,7 @@ class RadioWecker:
             self.display.show()
 
             # Small sleep to prevent busy waiting
-            time.sleep(0.01)
+            time.sleep(0.033)
 
     def cleanup(self):
         """Cleanup on exit"""

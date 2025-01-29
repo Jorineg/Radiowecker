@@ -73,10 +73,10 @@ class HardwareInput:
         # Button definitions
         self.buttons = {
             "power": Button(22, "Power"),
-            "menu": Button(27, "Menu"),
             "source": Button(23, "Source"),
-            "forward": Button(17, "Forward"),
+            "menu": Button(27, "Menu"),
             "backward": Button(24, "Backward"),
+            "forward": Button(5, "Forward"),
         }
 
         if RPI_HARDWARE:
@@ -165,31 +165,20 @@ class HardwareOutput:
     def __init__(self):
         if RPI_HARDWARE:
             GPIO.setmode(GPIO.BCM)
-            # Setup PWM pins for display brightness and audio amp enable
-            GPIO.setup(18, GPIO.OUT)  # Display brightness
-            GPIO.setup(25, GPIO.OUT)  # Amp enable
-            self.brightness_pwm = GPIO.PWM(18, 100)  # 100 Hz
-            self.brightness_pwm.start(100)  # Start at 100%
+            # Setup PWM pins for audio amp enable
+            GPIO.setup(4, GPIO.OUT)  # Amp enable
             self.amp_enabled = False
-            GPIO.output(25, False)
+            GPIO.output(4, False)
         else:
-            self.brightness_pwm = None
             self.amp_enabled = False
-
-    def set_display_brightness(self, brightness: int):
-        """Set display brightness (0-100)"""
-        if self.brightness_pwm:
-            self.brightness_pwm.ChangeDutyCycle(brightness)
 
     def set_amp_enable(self, enable: bool):
         """Enable/disable audio amplifier"""
         self.amp_enabled = enable
         if RPI_HARDWARE:
-            GPIO.output(25, enable)
+            GPIO.output(4, enable)
 
     def cleanup(self):
         """Cleanup on exit"""
         if RPI_HARDWARE:
-            if self.brightness_pwm:
-                self.brightness_pwm.stop()
             GPIO.cleanup()

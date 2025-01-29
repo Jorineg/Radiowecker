@@ -91,9 +91,16 @@ class AudioManager:
         # Initialize VLC if available
         if VLC_AVAILABLE:
             if RPI_HARDWARE:
-                self.instance = vlc.Instance("--aout=pulse", "--verbose=2", "--network-caching=1000", "--sout-keep", "--audio-resampler=soxr", "--rate=44100")
+                # Initialize ALSA
+                try:
+                    subprocess.run(['alsactl', 'init'], check=False)
+                except Exception as e:
+                    print(f"Warning: Could not initialize ALSA: {e}")
+                self.instance = vlc.Instance("--verbose=2",
+                                          "--aout=alsa",
+                                          "--alsa-audio-device=hw:0")
             else:
-                self.instance = vlc.Instance()
+                self.instance = vlc.Instance("--verbose=2")
             self.player = self.instance.media_player_new()
             
             self.media_list = self.instance.media_list_new()
