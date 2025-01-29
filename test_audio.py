@@ -18,7 +18,7 @@ def test_vlc():
         player.play()
         
         # Warte 10 Sekunden
-        time.sleep(10)
+        time.sleep(100)
         
         # Stoppe Wiedergabe
         player.stop()
@@ -31,23 +31,6 @@ def test_vlc():
         player.release()
         instance.release()
 
-# Alternative mit pygame (einfacher zu installieren)
-def test_pygame():
-    try:
-        import pygame
-        
-        pygame.mixer.init()
-        pygame.mixer.music.load("a.mp3")
-        pygame.mixer.music.play()
-        
-        # Warte 10 Sekunden
-        time.sleep(10)
-        
-        pygame.mixer.music.stop()
-        pygame.mixer.quit()
-        
-    except Exception as e:
-        print(f"Fehler: {e}")
 
 if __name__ == "__main__":
     # Wähle einen der Tests
