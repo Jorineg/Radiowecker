@@ -46,6 +46,9 @@ class RadioWecker:
         self.hardware_out = HardwareOutput()
         self.ui = UI(self.display, self.settings, self.audio, self.hardware_out)
 
+        # enable amp
+        self.hardware_out.set_amp_enable(True)
+
         # Setup hardware input with UI callback
         self.hardware_in = HardwareInput(self.ui.handle_button)
         # Connect hardware input to UI for button state monitoring
