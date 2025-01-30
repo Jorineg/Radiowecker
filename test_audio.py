@@ -40,54 +40,56 @@
 #     #test_pygame()
 
 
-
-# Test mit VLC
 import vlc
 import time
 
 def test_vlc():
     try:
-        # Erstelle eine VLC Instance mit folgenden Anpassungen:
-        # - Verwende reines ALSA ohne Umwege über PulseAudio (falls installiert).
-        # - Erhöhe das Verbose-Level für mehr Debug-Informationen.
-        # - Spezifiziere das ALSA-Gerät explizit (ersetze 'hw:0,0' mit deinem tatsächlichen Gerät,
-        #   finde es mit 'aplay -l').
-        # - Setze das Audioformat auf 16-bit signed integer (S16_LE), um die CPU zu entlasten.
-        # - Experimentiere mit manuellen Puffer- und Periodeneinstellungen (optional,
-        #   entferne die #, um sie zu aktivieren).
+        # Erstelle eine VLC-Instanz mit folgenden Anpassungen:
         instance = vlc.Instance(
             '--verbose=2',
-            "--aout=alsa",
-            "--alsa-audio-device=hw:0,0",  # Hier dein ALSA-Gerät eintragen!
-            "--audio-format=S16",
-            # "--alsa-audio-buffersize=4096", # Optional: Puffergröße anpassen
-            # "--alsa-audio-periods=8",      # Optional: Anzahl der Perioden anpassen
+            '--aout=alsa',
+            '--alsa-audio-device=hw:0,0'  # Ersetze 'hw:0,0' mit deinem ALSA-Gerät!
         )
 
-        # Erstelle einen Media Player
+        # Erstelle einen MediaPlayer
         player = instance.media_player_new()
 
-        # Lade eine Audiodatei (ersetze mit deinem Pfad)
-        media = instance.media_new("ABBA - Mamma Mia.mp3")  # Hier deinen MP3-Dateipfad eintragen
+        # Erstelle ein Media-Objekt und setze Optionen für 16-Bit Audio
+        # WICHTIG: Hier den korrekten Pfad zu deiner MP3-Datei eintragen!
+        media = instance.media_new("ABBA - Mamma Mia.mp3")
+        media.add_option('audio-format=S16') # Das wird leider nicht funktionieren
+        media.add_option('samplerate=48000') # aber vermutlich auch nicht nötig
+        # media.add_option('sout-alsa-buffersize=4096') # optional. Besser bei instance
+        # media.add_option('sout-alsa-periods=8') # s.o.
+        media.add_option('sout=#transcode{acodec=s16l,channels=2,samplerate=48000}:alsa') # WICHTIG! FIX!
+        media.add_option('sout-transcode-ab=128') # optional, für niedrigere bitrate, zum testen
+
+        # Setze das Media-Objekt im Player
         player.set_media(media)
 
-        player.audio_set_volume(50)
+        # Setze die Lautstärke
+        player.audio_set_volume(50)  # 50% Lautstärke
 
-        # Starte Wiedergabe
+        # Starte die Wiedergabe
         player.play()
 
         # Warte 10 Sekunden
-        time.sleep(100)
+        time.sleep(10)
 
-        # Stoppe Wiedergabe
+        # Stoppe die Wiedergabe
         player.stop()
 
     except Exception as e:
         print(f"Fehler: {e}")
 
     finally:
-        player.stop()
-        player.release()
+        # Stop und Release, auch im Fehlerfall
+        try:
+            player.stop()
+            player.release()
+        except:
+            pass
         instance.release()
 
 if __name__ == "__main__":
