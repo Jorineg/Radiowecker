@@ -338,8 +338,8 @@ class UI:
                 next_station = stations[(idx + 1) % len(stations)]
                 self.audio.play_station(next_station)
         elif source == "ALARMS":
-            # cycle through alarms
-            self.state.alarm_mode = (self.state.alarm_mode + 1) % 4
+            # toggle second bit
+            self.state.alarm_mode = self.state.alarm_mode ^ 2
 
     def handle_backward(self):
         """Handle backward in normal mode"""
@@ -354,7 +354,9 @@ class UI:
                 idx = stations.index(self.audio.current_station)
                 prev_station = stations[(idx - 1) % len(stations)]
                 self.audio.play_station(prev_station)
-
+        elif source == "ALARMS":
+            # toggle first bit
+            self.state.alarm_mode = self.state.alarm_mode ^ 1
     def select_next_file(self):
         """Select next file in browser"""
         files = self.audio.get_current_files()
