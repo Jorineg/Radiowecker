@@ -22,8 +22,9 @@ def test_radio():
         
         # Create VLC instance with ALSA audio output
         instance = vlc.Instance('--verbose=2',
-                              '--aout=alsa',
-                              '--alsa-audio-device=hw:0')
+                              '--aout=pulse',
+                              # '--alsa-audio-device=hw:0'
+                              )
         
         # Create media player
         player = instance.media_player_new()
