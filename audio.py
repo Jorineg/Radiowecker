@@ -75,10 +75,10 @@ class AudioManager:
             try:
                 print("Initializing audio device...")
                 # Ensure device is unmuted and at proper sample rate
-                subprocess.run(['amixer', 'sset', 'PCM', 'unmute'], check=False)
-                subprocess.run(['amixer', 'sset', 'PCM', '100%'], check=False)
-                # Set default sample rate
-                subprocess.run(['hw_params', '-r44100', 'hw:0'], check=False)
+                # subprocess.run(['amixer', 'sset', 'PCM', 'unmute'], check=False)
+                # subprocess.run(['amixer', 'sset', 'PCM', '100%'], check=False)
+                # # Set default sample rate
+                # subprocess.run(['hw_params', '-r44100', 'hw:0'], check=False)
             except Exception as e:
                 print(f"Warning: Could not initialize audio device: {e}")
 
@@ -94,12 +94,14 @@ class AudioManager:
             if RPI_HARDWARE:
                 # Initialize ALSA
                 try:
-                    subprocess.run(['alsactl', 'init'], check=False)
+                    # subprocess.run(['alsactl', 'init'], check=False)
+                    pass
                 except Exception as e:
                     print(f"Warning: Could not initialize ALSA: {e}")
                 self.instance = vlc.Instance("--verbose=2",
-                                          "--aout=alsa",
-                                          "--alsa-audio-device=hw:0")
+                                          "--aout=pulse",
+                                          # "--alsa-audio-device=hw:0"
+                                          )
             else:
                 self.instance = vlc.Instance("--verbose=2")
             self.player = self.instance.media_player_new()
