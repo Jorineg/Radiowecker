@@ -38,10 +38,10 @@ class PygameManager:
         pygame.init()
         self.button_map = {
             pygame.K_p: "power",
-            pygame.K_m: "menu",
             pygame.K_s: "source",
-            pygame.K_RIGHT: "forward",
+            pygame.K_m: "menu",
             pygame.K_LEFT: "backward",
+            pygame.K_RIGHT: "forward",
         }
         self.running = True
 
