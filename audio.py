@@ -211,7 +211,7 @@ class AudioManager:
 
         try:
             # Stop any existing playback
-            self.stop()
+            self._stop()
             
             # Create media without additional options (they're already set in the instance)
             media = self.instance.media_new(station.url)
