@@ -14,7 +14,8 @@ import subprocess
 BACK = "<zurück>"
 THIS_DIR = "<dieser Ordner>"
 
-FILE_PATH_PREFIX = "D:/"
+# FILE_PATH_PREFIX = "D:/"
+FILE_PATH_PREFIX = ""
 
 try:
     import vlc
