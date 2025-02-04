@@ -5,7 +5,7 @@ import time
 def test_vlc():
     try:
         # Erstelle eine VLC Instance
-        instance = vlc.Instance('--verbose=2', "--aout=pulse")
+        instance = vlc.Instance('--verbose=2', "--aout=alsa")
         
         # Erstelle einen Media Player
         player = instance.media_player_new()
@@ -14,7 +14,7 @@ def test_vlc():
         media = instance.media_new("ABBA - Mamma Mia.mp3")
         player.set_media(media)
 
-        player.audio_set_volume(70)
+        player.audio_set_volume(50)
         
         # Starte Wiedergabe
         player.play()
