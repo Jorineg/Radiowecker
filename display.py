@@ -170,5 +170,5 @@ class OLEDDisplay(Display):
         with canvas(self.device) as draw:
             for y in range(self.height):
                 for x in range(self.width):
-                    if self.buffer.get_pixel(x, y):
+                    if self.buffer.get_pixel(x, self.height - y - 1):
                         draw.point((x, y), fill="white")
