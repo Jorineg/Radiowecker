@@ -55,6 +55,8 @@ class AudioCommandType(Enum):
     PLAY_FILE = auto()
     STOP = auto()
     TOGGLE_PAUSE = auto()
+    MUTE_BLUETOOTH = auto()
+    UNMUTE_BLUETOOTH = auto()
 
 
 @dataclass
@@ -70,15 +72,16 @@ class AudioManager:
         self.media_list = None
         self.list_player = None
         self.command_queue = Queue()
+        self.bluetooth_muted = False
 
         if RPI_HARDWARE:
             try:
                 print("Initializing audio device...")
-                # Ensure device is unmuted and at proper sample rate
+                # Ensure ALSA is properly configured for Bluetooth audio
                 # subprocess.run(['amixer', 'sset', 'PCM', 'unmute'], check=False)
                 # subprocess.run(['amixer', 'sset', 'PCM', '100%'], check=False)
-                # # Set default sample rate
-                # subprocess.run(['hw_params', '-r44100', 'hw:0'], check=False)
+                # Make sure bluealsa is running
+                subprocess.run(['systemctl', 'is-active', '--quiet', 'bluealsa'], check=False)
             except Exception as e:
                 print(f"Warning: Could not initialize audio device: {e}")
 
@@ -185,6 +188,10 @@ class AudioManager:
                     self._stop()
                 elif command.command_type == AudioCommandType.TOGGLE_PAUSE:
                     self._toggle_pause()
+                elif command.command_type == AudioCommandType.MUTE_BLUETOOTH:
+                    self._mute_bluetooth()
+                elif command.command_type == AudioCommandType.UNMUTE_BLUETOOTH:
+                    self._unmute_bluetooth()
                 self.command_queue.task_done()
         except Empty:
             pass  # No more commands to process
@@ -200,6 +207,31 @@ class AudioManager:
 
     def toggle_pause(self):
         self.command_queue.put(AudioCommand(AudioCommandType.TOGGLE_PAUSE))
+
+    def mute_bluetooth(self):
+        self.command_queue.put(AudioCommand(AudioCommandType.MUTE_BLUETOOTH))
+
+    def unmute_bluetooth(self):
+        self.command_queue.put(AudioCommand(AudioCommandType.UNMUTE_BLUETOOTH))
+
+    def _mute_bluetooth(self):
+        """Deaktiviert temporär die Bluetooth-Audioausgabe"""
+        if RPI_HARDWARE:
+            try:
+                # Nutze bluealsa-aplay zum Stummschalten
+                subprocess.run(['amixer', '-D', 'bluealsa', 'sset', '"Bluetooth"', 'mute'], check=False)
+                self.bluetooth_muted = True
+            except Exception as e:
+                print(f"Fehler beim Stummschalten von Bluetooth: {e}")
+
+    def _unmute_bluetooth(self):
+        """Aktiviert die Bluetooth-Audioausgabe wieder"""
+        if RPI_HARDWARE:
+            try:
+                subprocess.run(['amixer', '-D', 'bluealsa', 'sset', '"Bluetooth"', 'unmute'], check=False)
+                self.bluetooth_muted = False
+            except Exception as e:
+                print(f"Fehler beim Entstummen von Bluetooth: {e}")
 
     def _play_station(self, station: AudioStation):
         if not self.player:
@@ -229,6 +261,8 @@ class AudioManager:
         self.current_station = None
 
         try:
+            # Stop any existing playback
+            self._stop()
             if self._create_playlist_from_file(file):
                 self.list_player.set_media_list(self.media_list)
                 self.list_player.play()

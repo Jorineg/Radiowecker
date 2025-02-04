@@ -294,9 +294,15 @@ class UI:
 
     def next_source(self):
         """Switch to next source"""
+        self.audio.stop()
         self.state.next_source()
         if self.state.get_current_source() == "INTERNET":
             self.audio.play_station(self.audio.current_station)
+
+        if self.state.get_current_source() == "BLUETOOTH":
+            self.audio.unmute_bluetooth()
+        else:
+            self.audio.mute_bluetooth()
 
     def handle_browser_button(self, button: str, long_press: bool):
         """Handle button in file browser mode"""
