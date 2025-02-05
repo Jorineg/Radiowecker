@@ -248,7 +248,7 @@ class AudioManager:
                               device_path, 'org.bluez.MediaControl1.Play'], check=False)
                 
                 # Kurz warten bis A2DP-Source verfügbar ist
-                # time.sleep(0.5)
+                time.sleep(0.5)
                 
                 # Dann unmuten
                 bt_source = f"bluez_source.{self.connected_bt_device.replace(':', '_')}.a2dp_source"
