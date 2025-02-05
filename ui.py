@@ -180,7 +180,10 @@ class UI:
             device_name, track_info = self.audio.get_bluetooth_info()
             self.display.buffer.draw_text(0, y, f"Device: {device_name}")
             if track_info:
-                self.display.buffer.draw_text(0, y + 10, track_info)
+                inofs = track_info.split('\n')
+                self.display.buffer.draw_text(0, y + 10, inofs[0])
+                if len(inofs) > 1:
+                    self.display.buffer.draw_text(0, y + 20, inofs[1])
 
         elif source == "ALARMS":
             # Show alarm times
