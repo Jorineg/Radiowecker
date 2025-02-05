@@ -102,8 +102,9 @@ ExecStart=/usr/bin/bluealsa -p a2dp-sink
 WantedBy=multi-user.target
 ```
 
-3. Aktiviere und starte den Dienst:
+5. Aktiviere und starte die Dienste:
 ```bash
+sudo systemctl daemon-reload
 sudo systemctl enable bluealsa
 sudo systemctl start bluealsa
 ```

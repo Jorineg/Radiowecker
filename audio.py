@@ -73,6 +73,8 @@ class AudioManager:
         self.list_player = None
         self.command_queue = Queue()
         self.bluetooth_muted = False
+        self.connected_bt_device = None
+        self.connected_bt_device_name = None
 
         if RPI_HARDWARE:
             try:
@@ -216,22 +218,29 @@ class AudioManager:
 
     def _mute_bluetooth(self):
         """Deaktiviert temporär die Bluetooth-Audioausgabe"""
-        if RPI_HARDWARE:
-            try:
-                # Nutze bluealsa-aplay zum Stummschalten
-                subprocess.run(['amixer', '-D', 'bluealsa', 'sset', '"Bluetooth"', 'mute'], check=False)
+        try:
+            if self.connected_bt_device:
+                # Sende Pause-Signal ans Gerät
+                subprocess.run(['bluetoothctl', 'menu', 'player', 'pause'], input=b'\n', check=False)
+                # Mute den Bluetooth Audio Input
+                bt_source = f"bluez_source.{self.connected_bt_device.replace(':', '_')}.a2dp_source"
+                subprocess.run(['pactl', 'set-source-mute', bt_source, '1'], check=False)
                 self.bluetooth_muted = True
-            except Exception as e:
-                print(f"Fehler beim Stummschalten von Bluetooth: {e}")
+        except Exception as e:
+            print(f"Fehler beim Stummschalten von Bluetooth: {e}")
 
     def _unmute_bluetooth(self):
         """Aktiviert die Bluetooth-Audioausgabe wieder"""
-        if RPI_HARDWARE:
-            try:
-                subprocess.run(['amixer', '-D', 'bluealsa', 'sset', '"Bluetooth"', 'unmute'], check=False)
+        try:
+            if self.connected_bt_device:
+                # Unmute den Bluetooth Audio Input
+                bt_source = f"bluez_source.{self.connected_bt_device.replace(':', '_')}.a2dp_source"
+                subprocess.run(['pactl', 'set-source-mute', bt_source, '0'], check=False)
+                # Sende Play-Signal ans Gerät
+                subprocess.run(['bluetoothctl', 'menu', 'player', 'play'], input=b'\n', check=False)
                 self.bluetooth_muted = False
-            except Exception as e:
-                print(f"Fehler beim Entstummen von Bluetooth: {e}")
+        except Exception as e:
+            print(f"Fehler beim Entstummen von Bluetooth: {e}")
 
     def _play_station(self, station: AudioStation):
         if not self.player:
