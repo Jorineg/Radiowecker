@@ -410,6 +410,8 @@ class AudioManager:
         """Aktualisiert die Information über verbundene Bluetooth-Geräte"""
         try:
             result = subprocess.run(['bluetoothctl', 'info'], capture_output=True, text=True, check=False)
+            self.connected_bt_device = None
+            self.connected_bt_device_name = None
             for line in result.stdout.splitlines():
                 if 'Device' in line:
                     self.connected_bt_device = line.split()[1]
