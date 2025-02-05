@@ -224,8 +224,11 @@ class AudioManager:
         self._update_bluetooth_connection()
         try:
             if self.connected_bt_device:
-                # Sende Pause-Signal ans Gerät
-                subprocess.run(['bluetoothctl', 'menu', 'player', 'pause'], input=b'\n', check=False)
+                # Sende Pause-Signal über D-Bus
+                device_path = f"/org/bluez/hci0/dev_{self.connected_bt_device.replace(':', '_')}"
+                subprocess.run(['dbus-send', '--system', '--dest=org.bluez', '--print-reply', 
+                              device_path, 'org.bluez.MediaControl1.Pause'], check=False)
+                
                 # Mute den Bluetooth Audio Input
                 bt_source = f"bluez_source.{self.connected_bt_device.replace(':', '_')}.a2dp_source"
                 subprocess.run(['pactl', 'set-source-mute', bt_source, '1'], check=False)
@@ -241,8 +244,11 @@ class AudioManager:
                 # Unmute den Bluetooth Audio Input
                 bt_source = f"bluez_source.{self.connected_bt_device.replace(':', '_')}.a2dp_source"
                 subprocess.run(['pactl', 'set-source-mute', bt_source, '0'], check=False)
-                # Sende Play-Signal ans Gerät
-                subprocess.run(['bluetoothctl', 'menu', 'player', 'play'], input=b'\n', check=False)
+                
+                # Sende Play-Signal über D-Bus
+                device_path = f"/org/bluez/hci0/dev_{self.connected_bt_device.replace(':', '_')}"
+                subprocess.run(['dbus-send', '--system', '--dest=org.bluez', '--print-reply', 
+                              device_path, 'org.bluez.MediaControl1.Play'], check=False)
                 self.bluetooth_muted = False
         except Exception as e:
             print(f"Fehler beim Entstummen von Bluetooth: {e}")
