@@ -415,3 +415,32 @@ class AudioManager:
                     break
         except Exception as e:
             print(f"Fehler beim Aktualisieren der Bluetooth-Verbindung: {e}")
+
+    def get_bluetooth_info(self):
+        """Gibt Informationen über das verbundene Bluetooth-Gerät zurück"""
+        self._update_bluetooth_connection()
+        
+        if not self.connected_bt_device:
+            return "Not connected", None
+            
+        try:
+            # Get track information
+            device_path = f"/org/bluez/hci0/dev_{self.connected_bt_device.replace(':', '_')}/player0"
+            result = subprocess.run(['dbus-send', '--system', '--dest=org.bluez', '--print-reply',
+                                   device_path, 'org.freedesktop.DBus.Properties.Get',
+                                   'string:org.bluez.MediaPlayer1', 'string:Track'],
+                                   capture_output=True, text=True, check=False)
+            
+            track_info = None
+            if "string" in result.stdout:
+                # Parse the track title from the D-Bus output
+                for line in result.stdout.splitlines():
+                    if "string" in line and "Title" in line:
+                        track_info = line.split('"')[1]
+                        break
+            
+            return self.connected_bt_device_name or "Connected", track_info
+            
+        except Exception as e:
+            print(f"Fehler beim Abrufen der Bluetooth-Informationen: {e}")
+            return self.connected_bt_device_name or "Error", None

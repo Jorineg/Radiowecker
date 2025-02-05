@@ -160,9 +160,6 @@ class UI:
         y = self.state.CONTENT_START
         source = self.state.get_current_source()
 
-        # print("current station: " + self.audio.current_station.name)
-
-
         if source == "RADIO":
             # Show frequency
             freq = "101.5 MHz"  # Get from radio module
@@ -179,9 +176,11 @@ class UI:
                 self.display.buffer.draw_text(0, y, self.audio.current_file.name)
 
         elif source == "BLUETOOTH":
-            # Show BT status
-            status = "Connected"  # Get from BT module
-            self.display.buffer.draw_text(0, y, status)
+            # Show BT status and track
+            device_name, track_info = self.audio.get_bluetooth_info()
+            self.display.buffer.draw_text(0, y, f"Device: {device_name}")
+            if track_info:
+                self.display.buffer.draw_text(0, y + 10, track_info)
 
         elif source == "ALARMS":
             # Show alarm times
