@@ -84,6 +84,9 @@ class AudioManager:
                 # subprocess.run(['amixer', 'sset', 'PCM', '100%'], check=False)
                 # Make sure bluealsa is running
                 subprocess.run(['systemctl', 'is-active', '--quiet', 'bluealsa'], check=False)
+                
+                # Get currently connected Bluetooth device
+                self._update_bluetooth_connection()
             except Exception as e:
                 print(f"Warning: Could not initialize audio device: {e}")
 
@@ -218,6 +221,7 @@ class AudioManager:
 
     def _mute_bluetooth(self):
         """Deaktiviert temporär die Bluetooth-Audioausgabe"""
+        self._update_bluetooth_connection()
         try:
             if self.connected_bt_device:
                 # Sende Pause-Signal ans Gerät
@@ -231,6 +235,7 @@ class AudioManager:
 
     def _unmute_bluetooth(self):
         """Aktiviert die Bluetooth-Audioausgabe wieder"""
+        self._update_bluetooth_connection()
         try:
             if self.connected_bt_device:
                 # Unmute den Bluetooth Audio Input
@@ -387,3 +392,16 @@ class AudioManager:
         self.volume = max(0, min(100, volume))
         if self.player:
             self.player.audio_set_volume(self.volume)
+
+    def _update_bluetooth_connection(self):
+        """Aktualisiert die Information über verbundene Bluetooth-Geräte"""
+        try:
+            result = subprocess.run(['bluetoothctl', 'info'], capture_output=True, text=True, check=False)
+            for line in result.stdout.splitlines():
+                if 'Device' in line:
+                    self.connected_bt_device = line.split()[1]
+                if 'Name' in line:
+                    self.connected_bt_device_name = line.split('Name: ')[1]
+                    break
+        except Exception as e:
+            print(f"Fehler beim Aktualisieren der Bluetooth-Verbindung: {e}")
