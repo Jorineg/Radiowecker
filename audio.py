@@ -9,6 +9,7 @@ from queue import Queue, Empty
 from dataclasses import dataclass
 from enum import Enum, auto
 import subprocess
+import time
 
 
 BACK = "<zurück>"
@@ -224,14 +225,14 @@ class AudioManager:
         self._update_bluetooth_connection()
         try:
             if self.connected_bt_device:
-                # Sende Pause-Signal über D-Bus
+                # Erst muten, dann pausieren
+                bt_source = f"bluez_source.{self.connected_bt_device.replace(':', '_')}.a2dp_source"
+                subprocess.run(['pactl', 'set-source-mute', bt_source, '1'], check=False)
+                
+                # Dann Pause-Signal senden
                 device_path = f"/org/bluez/hci0/dev_{self.connected_bt_device.replace(':', '_')}"
                 subprocess.run(['dbus-send', '--system', '--dest=org.bluez', '--print-reply', 
                               device_path, 'org.bluez.MediaControl1.Pause'], check=False)
-                
-                # Mute den Bluetooth Audio Input
-                bt_source = f"bluez_source.{self.connected_bt_device.replace(':', '_')}.a2dp_source"
-                subprocess.run(['pactl', 'set-source-mute', bt_source, '1'], check=False)
                 self.bluetooth_muted = True
         except Exception as e:
             print(f"Fehler beim Stummschalten von Bluetooth: {e}")
@@ -241,14 +242,17 @@ class AudioManager:
         self._update_bluetooth_connection()
         try:
             if self.connected_bt_device:
-                # Unmute den Bluetooth Audio Input
-                bt_source = f"bluez_source.{self.connected_bt_device.replace(':', '_')}.a2dp_source"
-                subprocess.run(['pactl', 'set-source-mute', bt_source, '0'], check=False)
-                
-                # Sende Play-Signal über D-Bus
+                # Erst Play-Signal senden um A2DP zu aktivieren
                 device_path = f"/org/bluez/hci0/dev_{self.connected_bt_device.replace(':', '_')}"
                 subprocess.run(['dbus-send', '--system', '--dest=org.bluez', '--print-reply', 
                               device_path, 'org.bluez.MediaControl1.Play'], check=False)
+                
+                # Kurz warten bis A2DP-Source verfügbar ist
+                # time.sleep(0.5)
+                
+                # Dann unmuten
+                bt_source = f"bluez_source.{self.connected_bt_device.replace(':', '_')}.a2dp_source"
+                subprocess.run(['pactl', 'set-source-mute', bt_source, '0'], check=False)
                 self.bluetooth_muted = False
         except Exception as e:
             print(f"Fehler beim Entstummen von Bluetooth: {e}")
