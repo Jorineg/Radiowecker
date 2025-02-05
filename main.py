@@ -84,6 +84,10 @@ class RadioWecker:
         # Update playing status
         self.ui.state.is_playing = self.audio.is_playing()
 
+        # Force update Bluetooth info if we're on the Bluetooth source
+        if self.ui.state.get_current_source() == "BLUETOOTH":
+            self.audio.get_bluetooth_info(force_update=True)
+
         # Enable/disable amp based on playing state
         # self.hardware_out.set_amp_enable(self.ui.state.is_playing)
 

@@ -76,6 +76,9 @@ class AudioManager:
         self.bluetooth_muted = False
         self.connected_bt_device = None
         self.connected_bt_device_name = None
+        self.current_bt_track = None
+        self.current_bt_artist = None
+        self.last_bt_update = 0
 
         if RPI_HARDWARE:
             try:
@@ -416,11 +419,21 @@ class AudioManager:
         except Exception as e:
             print(f"Fehler beim Aktualisieren der Bluetooth-Verbindung: {e}")
 
-    def get_bluetooth_info(self):
+    def get_bluetooth_info(self, force_update=False):
         """Gibt Informationen über das verbundene Bluetooth-Gerät zurück"""
+        current_time = time.time()
+        
+        # Nur alle 2 Sekunden aktualisieren, außer wenn force_update
+        if not force_update and current_time - self.last_bt_update < 2:
+            return (self.connected_bt_device_name or "Not connected", 
+                   f"{self.current_bt_track or ''}\n{self.current_bt_artist or ''}" if self.current_bt_track else None)
+        
+        self.last_bt_update = current_time
         self._update_bluetooth_connection()
         
         if not self.connected_bt_device:
+            self.current_bt_track = None
+            self.current_bt_artist = None
             return "Not connected", None
             
         try:
@@ -431,13 +444,36 @@ class AudioManager:
                                    'string:org.bluez.MediaPlayer1', 'string:Track'],
                                    capture_output=True, text=True, check=False)
             
+            # Parse the track information
+            self.current_bt_track = None
+            self.current_bt_artist = None
+            
+            lines = result.stdout.splitlines()
+            for i, line in enumerate(lines):
+                # Suche nach den Schlüsseln (Title, Artist)
+                if "string" in line:
+                    if "Title" in line:
+                        # Der Wert ist in der nächsten Zeile
+                        if i + 1 < len(lines) and "variant" in lines[i+1]:
+                            value_line = lines[i+1]
+                            if "string" in value_line:
+                                parts = value_line.split('"')
+                                if len(parts) >= 2:
+                                    self.current_bt_track = parts[1]
+                    elif "Artist" in line:
+                        # Der Wert ist in der nächsten Zeile
+                        if i + 1 < len(lines) and "variant" in lines[i+1]:
+                            value_line = lines[i+1]
+                            if "string" in value_line:
+                                parts = value_line.split('"')
+                                if len(parts) >= 2:
+                                    self.current_bt_artist = parts[1]
+            
             track_info = None
-            if "string" in result.stdout:
-                # Parse the track title from the D-Bus output
-                for line in result.stdout.splitlines():
-                    if "string" in line and "Title" in line:
-                        track_info = line.split('"')[1]
-                        break
+            if self.current_bt_track:
+                track_info = f"{self.current_bt_track}"
+                if self.current_bt_artist:
+                    track_info += f"\n{self.current_bt_artist}"
             
             return self.connected_bt_device_name or "Connected", track_info
             
