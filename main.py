@@ -34,28 +34,39 @@ class RadioWecker:
 
     def init_components(self):
         """Initialize all system components"""
-        # Create display
-        if self.is_pi:
-            self.display = OLEDDisplay(128, 64)
-        else:
-            self.display = PygameDisplay(128, 64, scale=4)
+        try:
+            # Create display
+            if self.is_pi:
+                self.display = OLEDDisplay(128, 64)
+            else:
+                self.display = PygameDisplay(128, 64, scale=4)
 
-        # Create other components
-        self.settings = Settings()
-        self.audio = AudioManager()
-        self.hardware_out = HardwareOutput()
-        self.ui = UI(self.display, self.settings, self.audio, self.hardware_out)
+            # Create other components
+            self.settings = Settings()
+            self.audio = AudioManager()
+            self.hardware_out = HardwareOutput()
+            self.ui = UI(self.display, self.settings, self.audio, self.hardware_out)
 
-        # enable amp
-        self.hardware_out.set_amp_enable(True)
+            # enable amp
+            try:
+                self.hardware_out.set_amp_enable(True)
+            except Exception as e:
+                print(f"Warning: Could not enable amp: {e}")
 
-        # Setup hardware input with UI callback
-        self.hardware_in = HardwareInput(self.ui.handle_button)
-        # Connect hardware input to UI for button state monitoring
-        self.ui.set_hardware_input(self.hardware_in)
+            # Setup hardware input with UI callback
+            try:
+                self.hardware_in = HardwareInput(self.ui.handle_button)
+                # Connect hardware input to UI for button state monitoring
+                self.ui.set_hardware_input(self.hardware_in)
+            except Exception as e:
+                print(f"Warning: Could not initialize hardware input: {e}")
+                self.hardware_in = None
 
-        # Apply initial settings
-        self.apply_settings()
+            # Apply initial settings
+            self.apply_settings()
+        except Exception as e:
+            print(f"Error during component initialization: {e}")
+            raise
 
     def apply_settings(self):
         """Apply current settings to hardware"""
@@ -115,7 +126,8 @@ class RadioWecker:
     def cleanup(self):
         """Cleanup on exit"""
         self.running = False
-        self.hardware_in.cleanup()
+        if hasattr(self, 'hardware_in'):
+            self.hardware_in.cleanup()
         self.hardware_out.cleanup()
         self.audio.stop()
         self.audio.cleanup()

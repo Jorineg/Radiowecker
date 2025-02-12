@@ -1,94 +1,66 @@
-# alles installieren mit -y
+# Radiowecker Setup Guide
 
-install git 
+## 1. Initial Setup
 
+```bash
+# Install git and clone repository
+sudo apt-get update
+sudo apt-get install -y git
+cd ~
 git clone https://github.com/Jorineg/Radiowecker.git
 
-sudo apt-get update
+# Install required packages
+sudo apt-get install -y python3-rpi.gpio python3-luma.core python3-luma.oled
+sudo apt-get install -y vlc python3-vlc
+```
 
-sudo apt-get install python3-rpi.gpio
-sudo apt-get install python3-luma.core python3-luma.oled
+## 2. Audio Setup
 
+### Configure Audio Hardware
+```bash
+# Edit config.txt
+sudo nano /boot/firmware/config.txt
 
-install vlc and python vlc (ohne pip)
-
--- sound --
-    Config.txt bearbeiten
-
-sudo nano /boot/config.txt (falsch! moved to /boot/firmware/config.txt)
-
-Füge diese Zeilen hinzu:
-
+# Add these lines:
 dtparam=i2s=on
-dtoverlay=hifiberry-dac
+dtoverlay=iqaudio-dacplus
 dtparam=audio=on
 
+# Install audio packages
 sudo apt-get install -y libasound2-plugins
+```
 
+### Configure Audio Modules
+```bash
+# Edit modules file
 sudo nano /etc/modules
-Füge diese Zeilen hinzu (falls nicht vorhanden):
+
+# Add these lines if not present:
 snd_bcm2835
 snd_soc_bcm2835_i2s
 snd_soc_pcm5102a
 snd_soc_hifiberry_dac
 
-
+# Install PulseAudio and add user to audio group
 sudo apt-get install -y pulseaudio
-
 sudo usermod -a -G audio $USER
+```
 
-sudo reboot
---- end first part ---
-
-
-
---- second part ---
-
-I2S aktivieren
-sudo raspi-config
-advanced -> audio -> set audio output to pulse audio
-
-sudo raspi-config
-
-Dann navigiere zu:
-
-    "Interface Options" (oder "Interfacing Options")
-    "I2C"
-    Wähle "Yes" um I2C zu aktivieren
-
-
-# Raspberry Pi als Bluetooth Audio Receiver einrichten
-
-## Benötigte Pakete installieren
+## 3. Bluetooth Setup
 
 ```bash
-sudo apt-get update
+# Install Bluetooth packages
 sudo apt-get install -y bluetooth bluez bluez-tools bluez-alsa-utils
-```
 
-## Bluetooth-Konfiguration
-
-1. Erstelle die Datei `/etc/bluetooth/main.conf` falls sie nicht existiert:
-```bash
-sudo nano /etc/bluetooth/main.conf
-```
-
-2. Füge folgende Konfiguration hinzu:
-```
+# Configure Bluetooth
+sudo tee /etc/bluetooth/main.conf > /dev/null << EOL
 [General]
 Class = 0x41C
 Enable = Source,Sink,Media,Socket
-```
+EOL
 
-## Bluez-ALSA Konfiguration
-
-1. Erstelle die Datei `/etc/systemd/system/bluealsa.service`:
-```bash
-sudo nano /etc/systemd/system/bluealsa.service
-```
-
-2. Füge folgendes hinzu:
-```
+# Create BluezALSA service
+sudo tee /etc/systemd/system/bluealsa.service > /dev/null << EOL
 [Unit]
 Description=BluezALSA proxy
 Requires=bluetooth.service
@@ -100,24 +72,10 @@ ExecStart=/usr/bin/bluealsa -p a2dp-sink
 
 [Install]
 WantedBy=multi-user.target
-```
+EOL
 
-5. Aktiviere und starte die Dienste:
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable bluealsa
-sudo systemctl start bluealsa
-```
-
-## Bluetooth Agent Konfiguration
-
-1. Erstelle die Datei `/etc/systemd/system/bt-agent.service`:
-```bash
-sudo nano /etc/systemd/system/bt-agent.service
-```
-
-2. Füge folgendes hinzu:
-```
+# Create Bluetooth agent service
+sudo tee /etc/systemd/system/bt-agent.service > /dev/null << EOL
 [Unit]
 Description=Bluetooth Auth Agent
 After=bluetooth.service
@@ -135,16 +93,72 @@ ExecStartPost=/usr/bin/bluetoothctl pairable on
 
 [Install]
 WantedBy=bluetooth.target
+EOL
 ```
 
-3. Aktiviere und starte den Dienst neu:
+## 4. System Configuration
+
+### Configure Interfaces
 ```bash
+sudo raspi-config
+# Enable I2C: Interface Options -> I2C -> Yes
+# Set Audio: Advanced Options -> Audio -> PulseAudio
+```
+
+### Setup Boot Display and Auto-start
+
+```bash
+# Create boot display service
+sudo tee /etc/systemd/system/boot-display.service > /dev/null << EOL
+[Unit]
+Description=Boot Display Service
+DefaultDependencies=no
+After=local-fs.target
+Before=network.target bluetooth.service
+
+[Service]
+Type=oneshot
+User=admin
+WorkingDirectory=/home/admin/Radiowecker
+ExecStart=/usr/bin/python3 /home/admin/Radiowecker/boot_display.py
+RemainAfterExit=yes
+
+[Install]
+WantedBy=sysinit.target
+EOL
+
+# Create main service
+sudo tee /etc/systemd/system/radiowecker.service > /dev/null << EOL
+[Unit]
+Description=Radiowecker Service
+After=network.target pulseaudio.service bluetooth.service
+Wants=network.target
+
+[Service]
+Type=simple
+User=admin
+WorkingDirectory=/home/admin/Radiowecker
+ExecStart=/usr/bin/python3 /home/admin/Radiowecker/main.py
+Restart=always
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
+EOL
+```
+
+## 5. Final Steps
+
+```bash
+# Enable and start all services
 sudo systemctl daemon-reload
-sudo systemctl restart bt-agent
-```
+sudo systemctl enable boot-display
+sudo systemctl enable radiowecker
+sudo systemctl enable bluealsa
+sudo systemctl enable bt-agent
 
-## Raspberry Pi neu starten
-```bash
+# Final reboot to apply all changes
 sudo reboot
 ```
 
@@ -197,4 +211,3 @@ sudo nano /etc/hosts
 3. Raspberry Pi neu starten:
 ```bash
 sudo reboot
-```

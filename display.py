@@ -156,9 +156,13 @@ class OLEDDisplay(Display):
     def __init__(self, width: int, height: int):
         super().__init__(width, height)
         if RPI_HARDWARE:
-            serial = i2c(port=1, address=0x3C)
-            # self.device = ssd1306(serial, width=width, height=height)
-            self.device = ssd1306(serial)
+            try:
+                serial = i2c(port=1, address=0x3C)
+                # self.device = ssd1306(serial, width=width, height=height)
+                self.device = ssd1306(serial)
+            except Exception as e:
+                print(f"Warning: Could not initialize OLED display: {e}")
+                self.device = None
         else:
             self.device = None
 
