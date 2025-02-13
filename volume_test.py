@@ -100,11 +100,13 @@ class RotaryEncoder:
                 if self.turn_count >= 2:  # Complete rotation
                     self.turn_count = 0
                     self.callback(2)
+                    print(f"CW turn detected")
             elif step == 3:  # Previous in sequence = CCW
                 self.turn_count -= 1
                 if self.turn_count <= -2:  # Complete rotation
                     self.turn_count = 0
                     self.callback(-2)
+                    print(f"CCW turn detected")
             else:  # Invalid sequence
                 self.turn_count = 0
                 
@@ -131,6 +133,7 @@ def main():
         nonlocal current_volume, volume_overlay_timeout
         current_volume = volume.adjust_volume(delta)
         volume_overlay_timeout = time.time() + OVERLAY_DURATION
+        print(f"Volume: {current_volume}%")  # Debug output
     
     # Initialize rotary encoder with callback
     encoder = RotaryEncoder(ROTARY_A, ROTARY_B, volume_callback)

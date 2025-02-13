@@ -126,19 +126,25 @@ class PygameDisplay(Display):
         pygame.display.set_caption("RadioWecker Display Emulation")
         self.pygame.set_screen(self.screen)
         
-        # Create persistent surfaces for better performance
+        # Create surfaces and buffer array for better performance
         self.base_surface = pygame.Surface((self.width, self.height))
         self.scaled_surface = pygame.Surface((self.width * self.scale, self.height * self.scale))
+        self.pixel_buffer = bytearray(self.width * self.height * 3)  # RGB buffer
 
     def show(self):
         try:
-            # Update base surface
-            pixels = pygame.PixelArray(self.base_surface)
-            for y in range(self.height):
-                for x in range(self.width):
-                    pixels[x, y] = 0xFFFFFF if self.buffer.get_pixel(x, y) else 0
-            del pixels
+            # Update pixel buffer in one go
+            for i in range(0, len(self.buffer.buffer)):
+                byte = self.buffer.buffer[i]
+                for bit in range(8):
+                    pixel_idx = (i * 8 + bit) * 3
+                    if pixel_idx + 2 < len(self.pixel_buffer):
+                        color = 255 if byte & (1 << bit) else 0
+                        self.pixel_buffer[pixel_idx:pixel_idx+3] = [color, color, color]
 
+            # Update surface from buffer
+            self.base_surface.get_buffer().write(self.pixel_buffer)
+            
             # Scale and update display
             pygame.transform.scale(self.base_surface, 
                                 (self.width * self.scale, self.height * self.scale), 
@@ -158,8 +164,9 @@ class OLEDDisplay(Display):
         if RPI_HARDWARE:
             try:
                 serial = i2c(port=1, address=0x3C)
-                # self.device = ssd1306(serial, width=width, height=height)
                 self.device = ssd1306(serial)
+                # Pre-allocate image buffer
+                self.image_buffer = [0] * (width * height)
             except Exception as e:
                 print(f"Warning: Could not initialize OLED display: {e}")
                 self.device = None
@@ -170,9 +177,14 @@ class OLEDDisplay(Display):
         if not self.device:
             return
 
-        # Convert buffer to device format
+        # Convert buffer to device format in one operation
         with canvas(self.device) as draw:
-            for y in range(self.height):
-                for x in range(self.width):
-                    if self.buffer.get_pixel(self.width - x -1, self.height - y - 1):
-                        draw.point((x, y), fill="white")
+            # Create image data
+            for i in range(0, len(self.buffer.buffer)):
+                byte = self.buffer.buffer[i]
+                for bit in range(8):
+                    y = (i * 8 + bit)
+                    if y < self.height:
+                        for x in range(self.width):
+                            if self.buffer.get_pixel(self.width - x - 1, self.height - y - 1):
+                                draw.point((x, y), fill="white")
