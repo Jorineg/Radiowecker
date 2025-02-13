@@ -1,5 +1,5 @@
 import RPi.GPIO as GPIO
 
 GPIO.setmode(GPIO.BCM)
-GPIO.setup(4, GPIO.OUT)  # Amp enable
-GPIO.output(4, True)
+GPIO.setup(22, GPIO.OUT)  # Amp enable
+GPIO.output(22, True)

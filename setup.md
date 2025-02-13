@@ -162,52 +162,95 @@ sudo systemctl enable bt-agent
 sudo reboot
 ```
 
-## Verwendung
+## 6. Boot Optimization
 
-1. Der Raspberry Pi erscheint nun auf Ihrem Smartphone als Bluetooth-Audiogerät mit dem Hostnamen des Pi
-2. Verbinden Sie sich von Ihrem Smartphone aus
-3. Wählen Sie den Pi als Audioausgabegerät
-4. Sie können nun Musik von Ihrem Smartphone auf den Pi streamen
+The following steps can help reduce boot time (currently ~16s on Pi Zero 2 W):
 
-## Fehlerbehebung
-
-Falls der Pi nicht erkannt wird:
 ```bash
-# Bluetooth-Dienst neustarten
-sudo systemctl restart bluetooth
+# Disable unnecessary services
+sudo systemctl disable triggerhappy.service
+sudo systemctl disable keyboard-setup.service
+sudo systemctl disable dphys-swapfile.service
+sudo systemctl disable raspi-config.service
+sudo systemctl disable avahi-daemon.service
 
-# Status überprüfen
-sudo systemctl status bluetooth
-sudo systemctl status bluealsa
-sudo systemctl status bt-agent
+# Optimize boot config
+sudo nano /boot/firmware/config.txt
 
+# Add these lines:
+boot_delay=0
+initial_turbo=60
+disable_splash=1
 
-bluetoothctl show
+# Optimize systemd timeouts
+sudo nano /etc/systemd/system.conf
+
+# Add or modify:
+DefaultTimeoutStartSec=5s
+DefaultTimeoutStopSec=5s
+
+# Optimize time synchronization
+sudo nano /etc/systemd/timesyncd.conf
+
+# Add or modify:
+[Time]
+NTP=pool.ntp.org
+FallbackNTP=0.pool.ntp.org 1.pool.ntp.org
+PollIntervalMinSec=32
+PollIntervalMaxSec=2048
+
+# Optimize filesystem
+sudo nano /etc/fstab
+
+# Add noatime,nodiratime to root partition options:
+PARTUUID=... / ext4 defaults,noatime,nodiratime 0 1
 ```
 
+## 7. Usage
 
-Wenn der Pi nicht gefunden wird:
-1. Prüfen Sie ob Bluetooth eingeschaltet ist: `power on`
-2. Stellen Sie sicher, dass der Pi sichtbar ist: `discoverable on`
-3. Aktivieren Sie das Pairing: `pairable on`
-4. Setzen Sie einen freundlichen Namen: `system-alias 'RadioPi'`
+1. The Raspberry Pi will appear on your smartphone as a Bluetooth audio device with the hostname of the Pi
+2. Connect from your smartphone
+3. Select the Pi as the audio output device
+4. You can now stream music from your smartphone to the Pi
 
-## Hostname ändern
+## 8. Change Hostname and Bluetooth Name
 
-Der Hostname wird als Bluetooth-Gerätename verwendet. Um ihn zu ändern:
+The hostname is used for network identification and can be different from the Bluetooth display name:
 
-1. Bearbeite die Datei `/etc/hostname`:
+1. Edit the hostname file (use lowercase for hostname):
 ```bash
 sudo nano /etc/hostname
 ```
-Ersetze den bestehenden Namen durch den gewünschten Namen (z.B. "RadioPi")
+Replace the existing name with the desired name (e.g. "wakebox")
 
-2. Bearbeite auch die Datei `/etc/hosts`:
+2. Also edit the hosts file:
 ```bash
 sudo nano /etc/hosts
 ```
-Ändere den alten Hostnamen in der Zeile mit "127.0.1.1" zum neuen Namen
+Change the old hostname in the line with "127.0.1.1" to the new name
 
-3. Raspberry Pi neu starten:
+3. Set a custom Bluetooth display name (can use mixed case):
+```bash
+# Stop bluetooth service
+sudo systemctl stop bluetooth
+
+# Change the Bluetooth name
+sudo bluetoothctl << EOL
+power on
+system-alias 'WakeBox'
+exit
+EOL
+
+# Start bluetooth service
+sudo systemctl start bluetooth
+
+# Restart the bluetooth agent
+sudo systemctl restart bt-agent
+```
+
+4. Reboot the Raspberry Pi:
 ```bash
 sudo reboot
+```
+
+After reboot, the device will be accessible via SSH using the lowercase hostname (e.g., `ssh admin@wakebox.local`) and will appear in Bluetooth device lists with the custom display name (e.g., "WakeBox").
