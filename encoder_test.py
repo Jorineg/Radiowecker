@@ -65,7 +65,7 @@ class RotaryEncoder:
             step = (new_idx - old_idx) % 4
             if step == 1:  # Next in sequence = CW
                 self.turn_count += 1
-                if self.turn_count >= 4:  # Complete rotation
+                if self.turn_count >= 2:  # Complete rotation
                     self.turn_count = 0
                     self.value = min(100, self.value + 2)
                     debug(f"CW -> {self.value}%")
@@ -74,7 +74,7 @@ class RotaryEncoder:
                     return 2
             elif step == 3:  # Previous in sequence = CCW
                 self.turn_count -= 1
-                if self.turn_count <= -4:  # Complete rotation
+                if self.turn_count <= -2:  # Complete rotation
                     self.turn_count = 0
                     self.value = max(0, self.value - 2)
                     debug(f"CCW -> {self.value}%")
