@@ -22,7 +22,7 @@ class VolumeControl:
             # Try different mixer controls
             for control in ['PCM', 'Master']:
                 try:
-                    output = subprocess.check_output(['amixer', 'get', control]).decode()
+                    output = subprocess.check_output(['amixer', '-M', 'get', control]).decode()
                     for line in output.split('\n'):
                         if 'Playback' in line and '%' in line:
                             return int(line.split('[')[1].split('%')[0])
@@ -38,7 +38,7 @@ class VolumeControl:
             # Try different mixer controls
             for control in ['PCM', 'Master']:
                 try:
-                    subprocess.run(['amixer', 'set', control, f'{volume}%'], 
+                    subprocess.run(['amixer', '-M', 'set', control, f'{volume}%'], 
                                 stdout=subprocess.DEVNULL, 
                                 stderr=subprocess.DEVNULL)
                     return volume
@@ -54,57 +54,61 @@ class VolumeControl:
         return self._volume
 
 class RotaryEncoder:
+    # Encoder sequence for clockwise rotation: 3,2,0,1,3
+    # Each position: (MSB) pin_a,pin_b (LSB)
+    SEQ_CW = [0b11, 0b10, 0b00, 0b01]  # 3,2,0,1
+    
     def __init__(self, pin_a, pin_b, callback):
         self.pin_a = pin_a
         self.pin_b = pin_b
         self.callback = callback
-        self.last_encoded = 0
-        self.value = 0
+        self.last_time = time.time()
+        self.last_position = -1
+        self.turn_count = 0
         
         # Setup GPIO pins with pull-up
         GPIO.setup(pin_a, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         GPIO.setup(pin_b, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         
-        # Read initial states
-        self.last_state_a = GPIO.input(pin_a)
-        self.last_state_b = GPIO.input(pin_b)
-        
-        # Add event detection with debounce
-        try:
-            GPIO.add_event_detect(pin_a, GPIO.BOTH, callback=self._update, bouncetime=1)
-            GPIO.add_event_detect(pin_b, GPIO.BOTH, callback=self._update, bouncetime=1)
-            self.use_polling = False
-        except:
-            print("Warning: Could not set up GPIO events. Falling back to polling mode.")
-            self.use_polling = True
+        # Get initial position
+        self._read_position()
+
+    def _read_position(self):
+        """Read current position in sequence (0-3)"""
+        a = GPIO.input(self.pin_a)
+        b = GPIO.input(self.pin_b)
+        return (a << 1) | b
 
     def _update(self, channel=None):
-        try:
-            state_a = GPIO.input(self.pin_a)
-            state_b = GPIO.input(self.pin_b)
+        position = self._read_position()
+        
+        # First reading
+        if self.last_position < 0:
+            self.last_position = position
+            return
             
-            if state_a != self.last_state_a or state_b != self.last_state_b:
-                # Determine rotation direction from state changes
-                if self.last_state_a == self.last_state_b:
-                    if state_a != state_b:
-                        # Clockwise
-                        self.value += 2
-                        self.callback(2)
-                else:
-                    if state_a == state_b:
-                        # Counter-clockwise
-                        self.value -= 2
-                        self.callback(-2)
+        # Position changed
+        if position != self.last_position:
+            # Find positions in sequence
+            old_idx = self.SEQ_CW.index(self.last_position)
+            new_idx = self.SEQ_CW.index(position)
+            
+            # Compute step
+            step = (new_idx - old_idx) % 4
+            if step == 1:  # Next in sequence = CW
+                self.turn_count += 1
+                if self.turn_count >= 2:  # Complete rotation
+                    self.turn_count = 0
+                    self.callback(2)
+            elif step == 3:  # Previous in sequence = CCW
+                self.turn_count -= 1
+                if self.turn_count <= -2:  # Complete rotation
+                    self.turn_count = 0
+                    self.callback(-2)
+            else:  # Invalid sequence
+                self.turn_count = 0
                 
-                self.last_state_a = state_a
-                self.last_state_b = state_b
-        except:
-            pass
-
-    def check_state(self):
-        """Polling mode update - call this regularly if events failed"""
-        if self.use_polling:
-            self._update()
+            self.last_position = position
 
 def main():
     # Setup GPIO
@@ -136,8 +140,8 @@ def main():
             # Clear display buffer
             display.buffer.clear()
             
-            # Check encoder in polling mode if events failed
-            encoder.check_state()
+            # Check encoder in polling mode
+            encoder._update()
             
             # Show volume overlay if timeout not reached
             if time.time() < volume_overlay_timeout:
@@ -166,7 +170,7 @@ def main():
             display.show()
             
             # Small sleep to prevent CPU hogging
-            time.sleep(0.01)
+            time.sleep(0.001)  # 1ms polling
             
     except KeyboardInterrupt:
         print("\nCleaning up...")
