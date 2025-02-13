@@ -54,24 +54,23 @@ class VolumeControl:
         return self._volume
 
 class RotaryEncoder:
-    # Encoder sequence for clockwise rotation: 3,2,0,1,3
-    # Each position: (MSB) pin_a,pin_b (LSB)
     SEQ_CW = [0b11, 0b10, 0b00, 0b01]  # 3,2,0,1
     
     def __init__(self, pin_a, pin_b, callback):
         self.pin_a = pin_a
         self.pin_b = pin_b
         self.callback = callback
-        self.last_time = time.time()
         self.last_position = -1
         self.turn_count = 0
+        self.running = True
         
         # Setup GPIO pins with pull-up
         GPIO.setup(pin_a, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         GPIO.setup(pin_b, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         
-        # Get initial position
-        self._read_position()
+        # Start polling thread
+        self.thread = threading.Thread(target=self._polling_thread, daemon=True)
+        self.thread.start()
 
     def _read_position(self):
         """Read current position in sequence (0-3)"""
@@ -79,38 +78,52 @@ class RotaryEncoder:
         b = GPIO.input(self.pin_b)
         return (a << 1) | b
 
-    def _update(self, channel=None):
-        position = self._read_position()
-        
-        # First reading
-        if self.last_position < 0:
-            self.last_position = position
-            return
+    def _polling_thread(self):
+        """Dedicated thread for encoder polling"""
+        while self.running:
+            position = self._read_position()
             
-        # Position changed
-        if position != self.last_position:
-            # Find positions in sequence
-            old_idx = self.SEQ_CW.index(self.last_position)
-            new_idx = self.SEQ_CW.index(position)
-            
-            # Compute step
-            step = (new_idx - old_idx) % 4
-            if step == 1:  # Next in sequence = CW
-                self.turn_count += 1
-                if self.turn_count >= 2:  # Complete rotation
-                    self.turn_count = 0
-                    self.callback(2)
-                    print(f"CW turn detected")
-            elif step == 3:  # Previous in sequence = CCW
-                self.turn_count -= 1
-                if self.turn_count <= -2:  # Complete rotation
-                    self.turn_count = 0
-                    self.callback(-2)
-                    print(f"CCW turn detected")
-            else:  # Invalid sequence
-                self.turn_count = 0
+            # First reading
+            if self.last_position < 0:
+                self.last_position = position
+                continue
                 
-            self.last_position = position
+            # Position changed
+            if position != self.last_position:
+                try:
+                    # Find positions in sequence
+                    old_idx = self.SEQ_CW.index(self.last_position)
+                    new_idx = self.SEQ_CW.index(position)
+                    
+                    # Compute step
+                    step = (new_idx - old_idx) % 4
+                    if step == 1:  # Next in sequence = CW
+                        self.turn_count += 1
+                        if self.turn_count >= 2:  # Complete rotation
+                            self.turn_count = 0
+                            self.callback(2)
+                            print(f"CW turn detected")
+                    elif step == 3:  # Previous in sequence = CCW
+                        self.turn_count -= 1
+                        if self.turn_count <= -2:  # Complete rotation
+                            self.turn_count = 0
+                            self.callback(-2)
+                            print(f"CCW turn detected")
+                    else:  # Invalid sequence
+                        self.turn_count = 0
+                except ValueError:
+                    # Invalid position, reset counter
+                    self.turn_count = 0
+                    
+                self.last_position = position
+            
+            # Short sleep between polls
+            time.sleep(0.0005)  # 0.5ms polling
+    
+    def stop(self):
+        """Stop the polling thread"""
+        self.running = False
+        self.thread.join()
 
 def main():
     # Setup GPIO
@@ -143,9 +156,6 @@ def main():
             # Clear display buffer
             display.buffer.clear()
             
-            # Check encoder in polling mode
-            encoder._update()
-            
             # Show volume overlay if timeout not reached
             if time.time() < volume_overlay_timeout:
                 # Draw volume text
@@ -173,11 +183,12 @@ def main():
             display.show()
             
             # Small sleep to prevent CPU hogging
-            time.sleep(0.001)  # 1ms polling
+            time.sleep(0.02)  # 50fps display update
             
     except KeyboardInterrupt:
         print("\nCleaning up...")
     finally:
+        encoder.stop()
         GPIO.cleanup()
 
 if __name__ == "__main__":

@@ -1,15 +1,15 @@
-# display.py
+#!/usr/bin/env python3
 
 from typing import Optional
 from pygame_manager import PygameManager
-
+import numpy as np
 
 try:
     import RPi.GPIO as GPIO
     from luma.core.interface.serial import i2c
     from luma.core.render import canvas
     from luma.oled.device import ssd1306
-
+    from PIL import Image
     RPI_HARDWARE = True
 except ImportError:
     import pygame
@@ -27,11 +27,14 @@ class DisplayBuffer:
         self.height = height
         self.pages = (height + 7) // 8
         self.buffer = bytearray(width * self.pages)
+        
+    def get_buffer(self):
+        """Get raw buffer data"""
+        return self.buffer
 
     def clear(self):
         """Clear display buffer"""
-        for i in range(len(self.buffer)):
-            self.buffer[i] = 0
+        self.buffer = bytearray(self.width * self.pages)
 
     def set_pixel(self, x: int, y: int, on: bool):
         """Set a single pixel in the buffer"""
@@ -60,15 +63,15 @@ class DisplayBuffer:
                 self.set_pixel(x + dx, y + dy, pixel != inverted)
 
     def draw_text(self, x: int, y: int, text: str, inverted: bool = False, size: str = "5x8"):
-        """Draw text using bitmap font. Size can be '5x8' or '8x16'"""
+        """Draw text using bitmap font"""
         cursor_x = x
         
         if size == "5x8":
             get_char = get_char_5x8
-            char_width = 6  # 5 pixels for character + 1 pixel spacing
+            char_width = 6
         elif size == "8x16":
             get_char = get_char_8x16
-            char_width = 9  # 8 pixels for character + 1 pixel spacing
+            char_width = 9
         else:
             raise ValueError("Font size must be '5x8' or '8x16'")
             
@@ -91,19 +94,8 @@ class DisplayBuffer:
                 self.set_pixel(x, y + dy, True)
                 self.set_pixel(x + w - 1, y + dy, True)
 
-    def invert_rect(self, x: int, y: int, w: int, h: int):
-        """Invert all pixels in rectangle"""
-        for dy in range(h):
-            for dx in range(w):
-                px = x + dx
-                py = y + dy
-                if 0 <= px < self.width and 0 <= py < self.height:
-                    self.set_pixel(px, py, not self.get_pixel(px, py))
-
 
 class Display:
-    """Abstract base class for display implementations"""
-
     def __init__(self, width: int, height: int):
         self.width = width
         self.height = height
@@ -113,7 +105,6 @@ class Display:
         self.buffer.clear()
 
     def show(self):
-        """Update physical display with buffer contents"""
         raise NotImplementedError()
 
 
@@ -126,47 +117,47 @@ class PygameDisplay(Display):
         pygame.display.set_caption("RadioWecker Display Emulation")
         self.pygame.set_screen(self.screen)
         
-        # Create surfaces and buffer array for better performance
-        self.base_surface = pygame.Surface((self.width, self.height))
-        self.scaled_surface = pygame.Surface((self.width * self.scale, self.height * self.scale))
-        self.pixel_buffer = bytearray(self.width * self.height * 3)  # RGB buffer
+        # Create optimized surfaces
+        self.base_surface = pygame.Surface((width, height))
+        self.scaled_surface = pygame.Surface((width * scale, height * scale))
+        
+        # Pre-allocate buffer array
+        self.surface_array = np.zeros((height, width), dtype=np.uint8)
 
     def show(self):
         try:
-            # Update pixel buffer in one go
-            for i in range(0, len(self.buffer.buffer)):
-                byte = self.buffer.buffer[i]
-                for bit in range(8):
-                    pixel_idx = (i * 8 + bit) * 3
-                    if pixel_idx + 2 < len(self.pixel_buffer):
-                        color = 255 if byte & (1 << bit) else 0
-                        self.pixel_buffer[pixel_idx:pixel_idx+3] = [color, color, color]
-
-            # Update surface from buffer
-            self.base_surface.get_buffer().write(self.pixel_buffer)
+            # Convert display buffer to numpy array in one operation
+            buffer = self.buffer.get_buffer()
+            for page in range(self.height // 8):
+                for x in range(self.width):
+                    byte = buffer[x + page * self.width]
+                    for bit in range(8):
+                        y = page * 8 + bit
+                        if y < self.height:
+                            self.surface_array[y, x] = 255 if byte & (1 << bit) else 0
             
-            # Scale and update display
+            # Update surface directly from array
+            pygame.surfarray.blit_array(self.base_surface, self.surface_array)
+            
+            # Scale and display
             pygame.transform.scale(self.base_surface, 
                                 (self.width * self.scale, self.height * self.scale), 
                                 self.scaled_surface)
             self.screen.blit(self.scaled_surface, (0, 0))
             pygame.display.flip()
         except:
-            # Handle any pygame errors gracefully
             pass
 
 
 class OLEDDisplay(Display):
-    """Real OLED display implementation for Raspberry Pi"""
-
     def __init__(self, width: int, height: int):
         super().__init__(width, height)
         if RPI_HARDWARE:
             try:
                 serial = i2c(port=1, address=0x3C)
                 self.device = ssd1306(serial)
-                # Pre-allocate image buffer
-                self.image_buffer = [0] * (width * height)
+                # Create image buffer
+                self.image = Image.new('1', (width, height))
             except Exception as e:
                 print(f"Warning: Could not initialize OLED display: {e}")
                 self.device = None
@@ -176,15 +167,17 @@ class OLEDDisplay(Display):
     def show(self):
         if not self.device:
             return
-
-        # Convert buffer to device format in one operation
-        with canvas(self.device) as draw:
-            # Create image data
-            for i in range(0, len(self.buffer.buffer)):
-                byte = self.buffer.buffer[i]
-                for bit in range(8):
-                    y = (i * 8 + bit)
-                    if y < self.height:
-                        for x in range(self.width):
-                            if self.buffer.get_pixel(self.width - x - 1, self.height - y - 1):
-                                draw.point((x, y), fill="white")
+            
+        try:
+            # Convert buffer to PIL image
+            for y in range(self.height):
+                for x in range(self.width):
+                    self.image.putpixel(
+                        (self.width - x - 1, self.height - y - 1),
+                        1 if self.buffer.get_pixel(x, y) else 0
+                    )
+            
+            # Display image directly
+            self.device.display(self.image)
+        except:
+            pass
