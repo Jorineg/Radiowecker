@@ -173,8 +173,8 @@ class OLEDDisplay(Display):
         super().__init__(width, height)
         if RPI_HARDWARE:
             try:
-                # Initialize I2C with maximum speed (can go up to 400kHz)
-                serial = i2c(port=1, address=0x3C, bus_speed_hz=400000)
+                # Initialize I2C
+                serial = i2c(port=1, address=0x3C)
                 self.device = ssd1306(serial)
                 
                 # Initialize display with optimal settings
