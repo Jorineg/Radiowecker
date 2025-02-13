@@ -101,7 +101,7 @@ def main():
             # Update volume if changed
             if change != 0:
                 new_volume = encoder.value + (change * 2)  # 2% steps
-                encoder.value = encoder.set_volume(new_volume)
+                # encoder.value = encoder.set_volume(new_volume)
                 debug(f"Volume: {encoder.value}%")
             
             # Small sleep to prevent CPU hogging
