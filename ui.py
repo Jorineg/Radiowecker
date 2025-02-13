@@ -3,12 +3,14 @@
 import time
 from typing import List, Tuple, Optional
 from enum import Enum
+from volume_control import VolumeControl
 
 
 class UIMode(Enum):
     NORMAL = "normal"
     MENU = "menu"
     FILE_BROWSER = "file_browser"
+    VOLUME = "volume"
 
 
 class UIState:
@@ -21,22 +23,18 @@ class UIState:
         # General state
         self.mode = UIMode.NORMAL
         self.standby = False
+        self.volume_overlay_timeout = 0
 
         # Sources
-        self.sources = ["RADIO", "USB", "INTERNET", "BLUETOOTH", "ALARMS"]
+        self.sources = ["RADIO", "USB", "INTERNET", "BLUETOOTH"]
         self.current_source = 0
 
-        # File browser state
-        self.selected_file_idx = 1
-
-        # Menu state
-        self.menu_title = ""
-        self.menu_items = []
-        self.menu_selected = 0
+        # Volume control
+        self.volume_control = VolumeControl()
+        self.volume = self.volume_control.get_volume()
 
         # Status indicators
         self.alarm_mode = 0  # 0=off, 1=alarm1, 2=alarm2, 3=both
-        self.volume = 50
         self.is_playing = False
 
         # Button states
@@ -74,6 +72,8 @@ class UI:
         self.state = UIState()
         self.hardware_in = None  # Will be set from outside
         self.hardware_out = hardware_out
+        self.last_volume_change = 0
+        self.VOLUME_OVERLAY_DURATION = 2.0
 
     def set_hardware_input(self, hardware_in):
         """Set hardware input reference to get button states"""
@@ -93,19 +93,21 @@ class UI:
                     for x in range(self.display.width):
                         self.display.buffer.set_pixel(x, y, False)
         else:
-            # Normal UI when not in standby
-            self.render_header()
-
-            if self.state.mode == UIMode.MENU:
-                self.render_menu()
-            elif self.state.mode == UIMode.FILE_BROWSER:
-                self.render_file_browser()
+            current_time = time.time()
+            if current_time < self.state.volume_overlay_timeout:
+                self.render_volume_overlay()
             else:
-                self.render_normal()
+                self.render_header()
+
+                if self.state.mode == UIMode.MENU:
+                    self.render_menu()
+                elif self.state.mode == UIMode.FILE_BROWSER:
+                    self.render_file_browser()
+                else:
+                    self.render_normal()
 
         # Always render button indicators
         self.render_button_indicators()
-        
         self.display.show()
 
     def render_header(self):
@@ -145,10 +147,10 @@ class UI:
         y = self.display.height - 1
         button_width = 1
         spacing = (self.display.width - (5 * button_width)) // 6  # 5 buttons, 6 spaces
-        
+
         # Button order from left to right: power, source, menu, backward, forward
         buttons = ["power", "source", "menu", "backward", "forward"]
-        
+
         # Draw indicators for currently pressed buttons
         for i, button in enumerate(buttons):
             x = spacing + i * (button_width + spacing)
@@ -185,15 +187,6 @@ class UI:
                 if len(inofs) > 1:
                     self.display.buffer.draw_text(0, y + 20, inofs[1])
 
-        elif source == "ALARMS":
-            # Show alarm times
-            alarm_1 = f"{self.settings.get_value('Wecker1 Stunden'):02d}:{self.settings.get_value('Wecker1 Minuten'):02d}"
-            alarm_2 = f"{self.settings.get_value('Wecker2 Stunden'):02d}:{self.settings.get_value('Wecker2 Minuten'):02d}"
-            self.display.buffer.draw_text(0, y, f"Alarm 1: {alarm_1}")
-            y += 10
-            self.display.buffer.draw_text(0, y, f"Alarm 2: {alarm_2}")
-            y += 10
-
     def render_menu(self):
         """Render settings menu"""
         y = self.state.CONTENT_START
@@ -214,7 +207,7 @@ class UI:
             alarm_num = "1" if "Wecker1" in item.name else "2"
             hours = None
             minutes = None
-            
+
             # Find the corresponding hours/minutes values
             for setting in self.settings.items:
                 if f"Wecker{alarm_num} Stunden" in setting.name:
@@ -223,7 +216,7 @@ class UI:
                     minutes = setting.value
                 if hours is not None and minutes is not None:
                     break
-            
+
             if hours is not None and minutes is not None:
                 value_lines = [f"{hours:02d}:{minutes:02d}"]
 
@@ -238,7 +231,7 @@ class UI:
         files = self.audio.get_current_files()
 
         get_file = lambda i: files[i%len(files)]
-       
+
         # Draw visible files
         # always three rows, selected file is in the middle
         for i in range(self.state.selected_file_idx - 1, self.state.selected_file_idx + 4):
@@ -258,41 +251,115 @@ class UI:
         y = (self.display.height - 16) // 2  # 16 pixels high
         self.display.buffer.draw_text(x, y, time_str, size="8x16")
 
-    def handle_button(self, button: str, long_press: bool):
-        """Handle button press"""
+    def render_volume_overlay(self):
+        """Render volume overlay with number and progress bar"""
+        self.display.clear()
+
+        volume_text = f"{self.state.volume}%"
+        text_width = len(volume_text) * 8
+        x = (self.display.width - text_width) // 2
+        y = (self.display.height - 16) // 2
+
+        self.display.draw_text(x, y, volume_text)
+
+        bar_width = int((self.display.width * 0.8))
+        bar_height = 4
+        bar_x = (self.display.width - bar_width) // 2
+        bar_y = y + 20
+
+        for i in range(bar_width):
+            self.display.buffer.set_pixel(bar_x + i, bar_y, True)
+            self.display.buffer.set_pixel(bar_x + i, bar_y + bar_height, True)
+        self.display.buffer.set_pixel(bar_x, bar_y + 1, True)
+        self.display.buffer.set_pixel(bar_x, bar_y + 2, True)
+        self.display.buffer.set_pixel(bar_x + bar_width - 1, bar_y + 1, True)
+        self.display.buffer.set_pixel(bar_x + bar_width - 1, bar_y + 2, True)
+
+        fill_width = int((bar_width - 2) * self.state.volume / 100)
+        for y in range(bar_y + 1, bar_y + bar_height):
+            for x in range(bar_x + 1, bar_x + 1 + fill_width):
+                self.display.buffer.set_pixel(x, y, True)
+
+    def handle_button(self, button: str, pressed: bool):
+        """Handle button and encoder events"""
+        current_time = time.time()
+        
+        # Handle encoder events
+        if button.startswith(("volume_", "control_")):
+            if pressed:
+                if button == "volume_cw":
+                    self.state.volume = self.state.volume_control.volume_up(5)
+                    self.state.volume_overlay_timeout = current_time + self.VOLUME_OVERLAY_DURATION
+                elif button == "volume_ccw":
+                    self.state.volume = self.state.volume_control.volume_down(5)
+                    self.state.volume_overlay_timeout = current_time + self.VOLUME_OVERLAY_DURATION
+                elif button == "control_cw":
+                    self.handle_forward()  # Reuse existing forward logic
+                elif button == "control_ccw":
+                    self.handle_backward()  # Reuse existing backward logic
+            return
+
+        # Handle normal button events (only on press)
+        if not pressed:
+            return
+
         if button == "power":
             self.state.toggle_standby()
-            self.hardware_out.set_amp_enable(not self.state.standby)
-            return
+            if self.state.standby:
+                self.hardware_out.set_amp_enable(False)
+            else:
+                self.hardware_out.set_amp_enable(True)
+        elif button == "source" and not self.state.standby:
+            self.state.next_source()
+        elif button == "menu" and not self.state.standby:
+            if self.state.mode == UIMode.MENU:
+                self.state.mode = UIMode.NORMAL
+            else:
+                self.show_main_menu()
+        # alarm1 and alarm2 buttons do nothing for now
 
         if self.state.standby:
             return
 
         if self.state.mode == UIMode.MENU:
-            self.handle_menu_button(button, long_press)
+            self.handle_menu_button(button)
         elif self.state.mode == UIMode.FILE_BROWSER:
-            self.handle_browser_button(button, long_press)
+            self.handle_browser_button(button)
         else:
-            self.handle_normal_button(button, long_press)
+            self.handle_normal_button(button)
 
-    def handle_menu_button(self, button: str, long_press: bool):
+    def handle_menu_button(self, button: str):
         """Handle button in menu mode"""
-        if button == "menu" and long_press:
-            # Long press always exits menu
-            self.state.mode = UIMode.NORMAL
-            self.settings.save_settings()
-            self.settings.reset_to_first()  # Reset position after saving
-        elif button == "forward":
-            self.settings.get_current_item().increase()
-        elif button == "backward":
-            self.settings.get_current_item().decrease()
-        elif button == "menu":
+        if button == "menu":
             # Short press - move to next item or exit if at last item
             if not self.settings.next_item():  # If we can't move to next item
                 self.state.mode = UIMode.NORMAL  # Exit menu
                 self.settings.save_settings()
                 self.settings.reset_to_first()  # Reset position after saving
+        elif button == "control_cw":
+            self.settings.get_current_item().increase()
+        elif button == "control_ccw":
+            self.settings.get_current_item().decrease()
 
+    def handle_browser_button(self, button: str):
+        """Handle button in file browser mode"""
+        if button == "menu":
+            self.state.mode = UIMode.NORMAL
+        elif button == "control_cw":
+            self.select_next_file()
+        elif button == "control_ccw":
+            self.select_prev_file()
+        elif button == "menu":
+            self.select_file()
+        elif button == "source":
+            self.next_source()
+
+    def handle_normal_button(self, button: str):
+        """Handle button in normal mode"""
+        if button == "menu":
+            self.state.mode = UIMode.MENU
+        elif button == "source":
+            self.next_source()
 
     def next_source(self):
         """Switch to next source"""
@@ -305,32 +372,6 @@ class UI:
             self.audio.unmute_bluetooth()
         else:
             self.audio.mute_bluetooth()
-
-    def handle_browser_button(self, button: str, long_press: bool):
-        """Handle button in file browser mode"""
-        if button == "menu" and long_press:
-            self.state.mode = UIMode.NORMAL
-        elif button == "forward":
-            self.select_next_file()
-        elif button == "backward":
-            self.select_prev_file()
-        elif button == "menu" and not long_press:
-            self.select_file()
-        elif button == "menu" and long_press:
-            self.state.mode = UIMode.MENU
-        elif button == "source":
-            self.next_source()
-
-    def handle_normal_button(self, button: str, long_press: bool):
-        """Handle button in normal mode"""
-        if button == "menu" and long_press:
-            self.state.mode = UIMode.MENU
-        elif button == "source":
-            self.next_source()
-        elif button == "forward":
-            self.handle_forward()
-        elif button == "backward":
-            self.handle_backward()
 
     def handle_forward(self):
         """Handle forward in normal mode"""
@@ -365,6 +406,7 @@ class UI:
         elif source == "ALARMS":
             # toggle first bit
             self.state.alarm_mode = self.state.alarm_mode ^ 1
+
     def select_next_file(self):
         """Select next file in browser"""
         files = self.audio.get_current_files()

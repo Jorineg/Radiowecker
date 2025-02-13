@@ -50,7 +50,7 @@ sudo usermod -a -G audio $USER
 
 ```bash
 # Install Bluetooth packages
-sudo apt-get install -y bluetooth bluez bluez-tools bluez-alsa-utils
+sudo apt-get install -y bluetooth bluez bluez-tools bluez-alsa-utils pulseaudio-module-bluetooth
 
 # Configure Bluetooth
 sudo tee /etc/bluetooth/main.conf > /dev/null << EOL
@@ -94,6 +94,30 @@ ExecStartPost=/usr/bin/bluetoothctl pairable on
 [Install]
 WantedBy=bluetooth.target
 EOL
+
+### Debugging Notes
+
+If you encounter Bluetooth audio issues:
+
+1. **Audio Routing**: The system uses PulseAudio with bluez5 for Bluetooth audio routing. If there's no sound:
+   - Check if pulseaudio-module-bluetooth is installed
+   - Verify PulseAudio sees the Bluetooth device: `pactl list | grep -A 2 "Name: bluez"`
+   - Check Bluetooth audio profiles: `bluetoothctl info [MAC] | grep -i "audio"`
+
+2. **Connection Issues**:
+   - Check bluealsa service status: `systemctl status bluealsa`
+   - Verify Bluetooth agent is running: `systemctl status bt-agent`
+   - Look for A2DP profile registration in logs: `journalctl -u bluetooth`
+
+3. **Audio Quality**:
+   - A2DP is used for high-quality audio streaming
+   - If audio stutters, try increasing the buffer time in PulseAudio settings
+   - Missing RTP packets in bluealsa logs may indicate connection issues
+
+4. **Hardware Setup**:
+   - Ensure I2S DAC is properly configured in /boot/firmware/config.txt
+   - Check audio card detection: `aplay -l`
+   - Verify ALSA routing: `cat /etc/asound.conf`
 ```
 
 ## 4. System Configuration
