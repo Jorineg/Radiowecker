@@ -6,7 +6,6 @@ import threading
 from gpio_pins import *  # Import GPIO pin definitions
 try:
     import RPi.GPIO as GPIO
-    GPIO.setmode(GPIO.BCM)  # Set mode once at import
     RPI_HARDWARE = True
 except ImportError:
     RPI_HARDWARE = False
@@ -97,6 +96,9 @@ class HardwareInput:
         }
 
         if RPI_HARDWARE:
+            # Ensure GPIO mode is set before any GPIO operations
+            GPIO.setwarnings(False)  # Disable warnings
+            GPIO.setmode(GPIO.BCM)
             self.setup_gpio()
         else:
             # Key mappings for PC testing
@@ -217,6 +219,9 @@ class HardwareInput:
 class HardwareOutput:
     def __init__(self):
         if RPI_HARDWARE:
+            # Ensure GPIO mode is set before any GPIO operations
+            GPIO.setwarnings(False)  # Disable warnings
+            GPIO.setmode(GPIO.BCM)
             # Setup PWM pins for audio amp enable
             GPIO.setup(AMP_MUTE, GPIO.OUT)  # Amp enable
             self.amp_enabled = False
