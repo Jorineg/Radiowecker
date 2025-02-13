@@ -4,7 +4,7 @@ import time
 import threading
 import subprocess
 import RPi.GPIO as GPIO
-from display import OLEDDisplay
+from display import OLEDDisplay, PygameDisplay
 from gpio_pins import ROTARY1_A, ROTARY1_B, ROTARY1_SW
 
 # GPIO Pins für Rotary Encoder
@@ -81,9 +81,11 @@ def main():
     GPIO.setmode(GPIO.BCM)
     GPIO.setwarnings(False)
     
-    # Initialize display
-    display = OLEDDisplay(128, 64)
-    display.init()
+    # Initialize display based on platform
+    try:
+        display = OLEDDisplay(128, 64)
+    except:
+        display = PygameDisplay(128, 64)
     
     # Initialize volume control
     volume = VolumeControl()
@@ -101,7 +103,7 @@ def main():
     
     try:
         while True:
-            # Clear display
+            # Clear display buffer
             display.buffer.clear()
             
             # Show volume overlay if timeout not reached
@@ -127,7 +129,7 @@ def main():
                 if filled_width > 0:
                     display.buffer.draw_rect(x, y, filled_width, bar_height, True)
             
-            # Update display
+            # Update physical display
             display.show()
             
             # Small sleep to prevent CPU hogging
