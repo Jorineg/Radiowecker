@@ -106,7 +106,7 @@ def main():
     
     # Initialize volume control
     volume = VolumeControl()
-    current_volume = volume._get_current_volume()
+    current_volume = volume.get_volume()
     volume_overlay_timeout = 0
     OVERLAY_DURATION = 1.0  # Show volume for 1 second
     last_volume_update = 0
@@ -117,7 +117,8 @@ def main():
         current_time = time.time()
         
         # Update volume
-        current_volume = volume.adjust_volume(delta)
+        current_volume += delta
+        volume.set_volume(current_volume)
         volume_overlay_timeout = current_time + OVERLAY_DURATION
         last_volume_update = current_time
         print(f"Volume: {current_volume}%")  # Debug output
