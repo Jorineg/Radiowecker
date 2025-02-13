@@ -245,7 +245,7 @@ def main():
             display.show()
             
             # Small sleep to prevent CPU hogging
-            time.sleep(0.01)  # 100fps main loop
+            time.sleep(0.03)  # 30fps main loop
             
     except KeyboardInterrupt:
         print("\nCleaning up...")
