@@ -4,7 +4,7 @@ import time
 import threading
 import subprocess
 import RPi.GPIO as GPIO
-from display import Display
+from display import OLEDDisplay
 from gpio_pins import ROTARY1_A, ROTARY1_B, ROTARY1_SW
 
 # GPIO Pins für Rotary Encoder
@@ -82,7 +82,7 @@ def main():
     GPIO.setwarnings(False)
     
     # Initialize display
-    display = Display.OLEDDisplay(128, 64)
+    display = OLEDDisplay(128, 64)
     display.init()
     
     # Initialize volume control
