@@ -269,9 +269,11 @@ class UI:
                     self.state.volume = self.state.volume_control.volume_down(5)
                     self.state.volume_overlay_timeout = current_time + self.VOLUME_OVERLAY_DURATION
                 elif button == "control_cw":
-                    self.audio.next_station()
+                    # self.audio.next_station()
+                    pass
                 elif button == "control_ccw":
-                    self.audio.previous_station()
+                    # self.audio.previous_station()
+                    pass
             return
 
         if not pressed:
