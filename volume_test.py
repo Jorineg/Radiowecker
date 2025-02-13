@@ -82,7 +82,7 @@ def main():
     GPIO.setwarnings(False)
     
     # Initialize display
-    display = Display()
+    display = Display.OLEDDisplay(128, 64)
     display.init()
     
     # Initialize volume control
