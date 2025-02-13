@@ -49,34 +49,58 @@ class RotaryEncoder:
         self.callback = callback
         self.last_encoded = 0
         self.value = 0
-        self.last_msb = 0
-        self.last_lsb = 0
         
+        # Ensure pins are properly cleaned up
+        GPIO.remove_event_detect(pin_a)
+        GPIO.remove_event_detect(pin_b)
+        
+        # Setup GPIO pins with pull-up
         GPIO.setup(pin_a, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         GPIO.setup(pin_b, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         
-        # Setup callbacks for both pins with bouncetime
-        GPIO.add_event_detect(pin_a, GPIO.BOTH, callback=self._update)
-        GPIO.add_event_detect(pin_b, GPIO.BOTH, callback=self._update)
+        # Read initial states
+        self.last_state_a = GPIO.input(pin_a)
+        self.last_state_b = GPIO.input(pin_b)
+        
+        # Add event detection with debounce
+        try:
+            GPIO.add_event_detect(pin_a, GPIO.BOTH, callback=self._update, bouncetime=1)
+            GPIO.add_event_detect(pin_b, GPIO.BOTH, callback=self._update, bouncetime=1)
+        except RuntimeError as e:
+            print(f"Warning: Could not set up GPIO events ({e}). Falling back to polling mode.")
+            self.use_polling = True
+        else:
+            self.use_polling = False
 
-    def _update(self, channel):
-        MSB = GPIO.input(self.pin_a)
-        LSB = GPIO.input(self.pin_b)
+    def _update(self, channel=None):
+        state_a = GPIO.input(self.pin_a)
+        state_b = GPIO.input(self.pin_b)
         
-        encoded = (MSB << 1) | LSB
-        sum = (self.last_encoded << 2) | encoded
-        
-        # Rotary encoder state machine
-        if sum in [0b0001, 0b0111, 0b1110, 0b1000]:
-            self.value -= 2
-            self.callback(-2)
-        elif sum in [0b0010, 0b1011, 0b1101, 0b0100]:
-            self.value += 2
-            self.callback(2)
+        if state_a != self.last_state_a or state_b != self.last_state_b:
+            # Determine rotation direction from state changes
+            if self.last_state_a == self.last_state_b:
+                if state_a != state_b:
+                    # Clockwise
+                    self.value += 2
+                    self.callback(2)
+            else:
+                if state_a == state_b:
+                    # Counter-clockwise
+                    self.value -= 2
+                    self.callback(-2)
             
-        self.last_encoded = encoded
+            self.last_state_a = state_a
+            self.last_state_b = state_b
+
+    def check_state(self):
+        """Polling mode update - call this regularly if events failed"""
+        if self.use_polling:
+            self._update()
 
 def main():
+    # Cleanup any previous GPIO state
+    GPIO.cleanup()
+    
     # Setup GPIO
     GPIO.setmode(GPIO.BCM)
     GPIO.setwarnings(False)
@@ -105,6 +129,9 @@ def main():
         while True:
             # Clear display buffer
             display.buffer.clear()
+            
+            # Check encoder in polling mode if events failed
+            encoder.check_state()
             
             # Show volume overlay if timeout not reached
             if time.time() < volume_overlay_timeout:
@@ -139,7 +166,6 @@ def main():
         print("\nCleaning up...")
     finally:
         GPIO.cleanup()
-        display.cleanup()
 
 if __name__ == "__main__":
     main()
