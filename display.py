@@ -150,34 +150,107 @@ class PygameDisplay(Display):
 
 
 class OLEDDisplay(Display):
+    # SSD1306 commands
+    SET_CONTRAST = 0x81
+    SET_ENTIRE_ON = 0xA4
+    SET_NORM_INV = 0xA6
+    SET_DISP = 0xAE
+    SET_MEM_ADDR = 0x20
+    SET_COL_ADDR = 0x21
+    SET_PAGE_ADDR = 0x22
+    SET_DISP_START_LINE = 0x40
+    SET_SEG_REMAP = 0xA0
+    SET_MUX_RATIO = 0xA8
+    SET_COM_OUT_DIR = 0xC0
+    SET_DISP_OFFSET = 0xD3
+    SET_COM_PIN_CFG = 0xDA
+    SET_DISP_CLK_DIV = 0xD5
+    SET_PRECHARGE = 0xD9
+    SET_VCOM_DESEL = 0xDB
+    SET_CHARGE_PUMP = 0x8D
+
     def __init__(self, width: int, height: int):
         super().__init__(width, height)
         if RPI_HARDWARE:
             try:
-                serial = i2c(port=1, address=0x3C)
+                # Initialize I2C with maximum speed (can go up to 400kHz)
+                serial = i2c(port=1, address=0x3C, bus_speed_hz=400000)
                 self.device = ssd1306(serial)
-                # Create image buffer
-                self.image = Image.new('1', (width, height))
+                
+                # Initialize display with optimal settings
+                self._init_display()
+                
+                # Pre-allocate display buffer
+                self.display_buffer = bytearray(self.width * self.pages)
             except Exception as e:
                 print(f"Warning: Could not initialize OLED display: {e}")
                 self.device = None
         else:
             self.device = None
 
+    def _init_display(self):
+        """Initialize display with optimal settings"""
+        self.device.command(self.SET_DISP | 0x00)  # display off
+        
+        # Hardware configuration
+        self.device.command(self.SET_DISP_CLK_DIV)
+        self.device.command(0x80)  # Suggested ratio
+        
+        self.device.command(self.SET_MUX_RATIO)
+        self.device.command(self.height - 1)
+        
+        self.device.command(self.SET_DISP_OFFSET)
+        self.device.command(0x00)
+        
+        self.device.command(self.SET_DISP_START_LINE | 0x00)
+        self.device.command(self.SET_CHARGE_PUMP)
+        self.device.command(0x14)  # Enable charge pump
+        
+        # Memory addressing settings
+        self.device.command(self.SET_MEM_ADDR)
+        self.device.command(0x00)  # Horizontal addressing mode
+        
+        self.device.command(self.SET_SEG_REMAP | 0x01)
+        self.device.command(self.SET_COM_OUT_DIR | 0x08)
+        
+        self.device.command(self.SET_COM_PIN_CFG)
+        self.device.command(0x12)
+        
+        self.device.command(self.SET_CONTRAST)
+        self.device.command(0xCF)
+        
+        self.device.command(self.SET_PRECHARGE)
+        self.device.command(0xF1)
+        
+        self.device.command(self.SET_VCOM_DESEL)
+        self.device.command(0x40)
+        
+        # Display settings
+        self.device.command(self.SET_ENTIRE_ON)  # Output follows RAM
+        self.device.command(self.SET_NORM_INV)   # Not inverted
+        self.device.command(self.SET_DISP | 0x01)  # Display on
+
     def show(self):
         if not self.device:
             return
             
         try:
-            # Convert buffer to PIL image
-            for y in range(self.height):
-                for x in range(self.width):
-                    self.image.putpixel(
-                        (self.width - x - 1, self.height - y - 1),
-                        1 if self.buffer.get_pixel(x, y) else 0
-                    )
+            # Flip buffer horizontally (SSD1306 requirement)
+            for page in range(self.pages):
+                start = page * self.width
+                end = start + self.width
+                self.display_buffer[start:end] = bytes(reversed(self.buffer.buffer[start:end]))
             
-            # Display image directly
-            self.device.display(self.image)
-        except:
+            # Set address range for entire display
+            self.device.command(self.SET_COL_ADDR)
+            self.device.command(0)
+            self.device.command(self.width - 1)
+            self.device.command(self.SET_PAGE_ADDR)
+            self.device.command(0)
+            self.device.command(self.pages - 1)
+            
+            # Write entire buffer in one operation
+            self.device.data(self.display_buffer)
+        except Exception as e:
+            print(f"Display update failed: {e}")
             pass

@@ -12,14 +12,44 @@ ROTARY_A = ROTARY1_A  # Volume encoder pins
 ROTARY_B = ROTARY1_B
 ROTARY_SW = ROTARY1_SW
 
+try:
+    import alsaaudio
+    HAVE_ALSA = True
+except ImportError:
+    HAVE_ALSA = False
+
 class VolumeControl:
     def __init__(self):
-        self._volume = self._get_current_volume()
+        self._volume = 50
         self._lock = threading.Lock()
+        
+        # Try to initialize ALSA mixer
+        self.mixer = None
+        if HAVE_ALSA:
+            try:
+                # Try different mixer controls
+                for control in ['PCM', 'Master']:
+                    try:
+                        self.mixer = alsaaudio.Mixer(control)
+                        self._volume = self.mixer.getvolume()[0]
+                        break
+                    except:
+                        continue
+            except:
+                pass
+        
+        if not self.mixer:
+            print("Warning: Using subprocess for volume control (slower)")
 
     def _get_current_volume(self):
+        if self.mixer:
+            try:
+                return self.mixer.getvolume()[0]
+            except:
+                pass
+                
         try:
-            # Try different mixer controls
+            # Fallback to amixer
             for control in ['PCM', 'Master']:
                 try:
                     output = subprocess.check_output(['amixer', '-M', 'get', control]).decode()
@@ -34,8 +64,16 @@ class VolumeControl:
 
     def _set_volume(self, volume):
         volume = max(0, min(100, volume))
+        
+        if self.mixer:
+            try:
+                self.mixer.setvolume(volume)
+                return volume
+            except:
+                pass
+                
         try:
-            # Try different mixer controls
+            # Fallback to amixer
             for control in ['PCM', 'Master']:
                 try:
                     subprocess.run(['amixer', '-M', 'set', control, f'{volume}%'], 
