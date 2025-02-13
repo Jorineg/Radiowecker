@@ -170,7 +170,9 @@ class OLEDDisplay(Display):
     SET_CHARGE_PUMP = 0x8D
 
     def __init__(self, width: int, height: int):
+        # Initialize base class first to set up buffer and pages
         super().__init__(width, height)
+        
         if RPI_HARDWARE:
             try:
                 # Initialize I2C
@@ -180,8 +182,8 @@ class OLEDDisplay(Display):
                 # Initialize display with optimal settings
                 self._init_display()
                 
-                # Pre-allocate display buffer
-                self.display_buffer = bytearray(self.width * self.pages)
+                # Pre-allocate display buffer using pages from base class
+                self.display_buffer = bytearray(self.width * self.buffer.pages)
             except Exception as e:
                 print(f"Warning: Could not initialize OLED display: {e}")
                 self.device = None
@@ -236,7 +238,7 @@ class OLEDDisplay(Display):
             
         try:
             # Flip buffer horizontally (SSD1306 requirement)
-            for page in range(self.pages):
+            for page in range(self.buffer.pages):
                 start = page * self.width
                 end = start + self.width
                 self.display_buffer[start:end] = bytes(reversed(self.buffer.buffer[start:end]))
@@ -247,7 +249,7 @@ class OLEDDisplay(Display):
             self.device.command(self.width - 1)
             self.device.command(self.SET_PAGE_ADDR)
             self.device.command(0)
-            self.device.command(self.pages - 1)
+            self.device.command(self.buffer.pages - 1)
             
             # Write entire buffer in one operation
             self.device.data(self.display_buffer)
