@@ -3,6 +3,8 @@
 from typing import Optional
 from pygame_manager import PygameManager
 import numpy as np
+import time
+import threading
 
 try:
     import RPi.GPIO as GPIO
@@ -185,11 +187,34 @@ class OLEDDisplay(Display):
                 # Pre-allocate display buffer using pages from base class
                 self.display_buffer = bytearray(self.width * self.buffer.pages)
                 self.last_buffer = bytearray(self.width * self.buffer.pages)
+                
+                # Setup display thread
+                self._update_requested = False
+                self._display_lock = threading.Lock()
+                self._display_thread = threading.Thread(target=self._display_update_thread, daemon=True)
+                self._display_thread.start()
+                
             except Exception as e:
                 print(f"Warning: Could not initialize OLED display: {e}")
                 self.device = None
         else:
             self.device = None
+            
+    def _display_update_thread(self):
+        """Background thread for display updates"""
+        while True:
+            # Check if update is needed
+            with self._display_lock:
+                if self._update_requested:
+                    try:
+                        # Write entire buffer in one operation
+                        self.device.data(self.display_buffer)
+                        self._update_requested = False
+                    except Exception as e:
+                        print(f"Display update failed: {e}")
+            
+            # Small sleep to prevent CPU hogging
+            time.sleep(0.001)
 
     def _init_display(self):
         """Initialize display with optimal settings"""
@@ -250,15 +275,16 @@ class OLEDDisplay(Display):
             
         try:
             # Copy buffer directly (no flipping needed anymore)
-            self.display_buffer[:] = self.buffer.buffer[:]
+            self.display_buffer[:] = self.buffer.get_buffer()
             
             # Only update if buffer changed
             if self.display_buffer != self.last_buffer:
-                # Write entire buffer in one operation - no need to set address range
-                self.device.data(self.display_buffer)
-                
                 # Save current buffer
                 self.last_buffer[:] = self.display_buffer[:]
+                
+                # Request update in background thread
+                with self._display_lock:
+                    self._update_requested = True
                 
         except Exception as e:
             print(f"Display update failed: {e}")
