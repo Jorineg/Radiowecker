@@ -7,6 +7,10 @@ import RPi.GPIO as GPIO
 from display import OLEDDisplay, PygameDisplay
 from gpio_pins import ROTARY1_A, ROTARY1_B, ROTARY1_SW
 
+# For timing measurements
+last_frame_time = time.time()
+frame_times = []
+
 # GPIO Pins für Rotary Encoder
 ROTARY_A = ROTARY1_A  # Volume encoder pins
 ROTARY_B = ROTARY1_B
@@ -208,21 +212,28 @@ def main():
     # Initialize rotary encoder with callback
     encoder = RotaryEncoder(ROTARY_A, ROTARY_B, volume_callback)
     
+    # For FPS calculation
+    frame_count = 0
+    last_fps_time = time.time()
+    
     try:
         while True:
+            frame_start = time.time()
+            
             # Process encoder turns if enough time has passed
-            current_time = time.time()
-            if current_time - last_volume_update >= MIN_UPDATE_INTERVAL:
+            if frame_start - last_volume_update >= MIN_UPDATE_INTERVAL:
                 encoder.process_turns()
             
             # Clear display buffer
+            t1 = time.time()
             display.buffer.clear()
+            t2 = time.time()
             
             # Show volume overlay if timeout not reached
             if time.time() < volume_overlay_timeout:
                 # Draw volume text
                 volume_text = f"{current_volume}%"
-                text_width = len(volume_text) * 9  # 8 pixels per char + 1 spacing
+                text_width = len(volume_text) * 9
                 x = (display.width - text_width) // 2
                 y = (display.height - 16) // 2
                 display.buffer.draw_text(x, y, volume_text, size="8x16")
@@ -240,12 +251,32 @@ def main():
                 filled_width = int((bar_width * current_volume) / 100)
                 if filled_width > 0:
                     display.buffer.draw_rect(x, y, filled_width, bar_height, True)
+            t3 = time.time()
             
             # Update physical display
             display.show()
+            t4 = time.time()
             
-            # Small sleep to prevent CPU hogging
-            time.sleep(0.03)  # 30fps main loop
+            # Calculate timings
+            clear_time = t2 - t1
+            draw_time = t3 - t2
+            display_time = t4 - t3
+            total_time = t4 - frame_start
+            
+            # Update FPS counter
+            frame_count += 1
+            if frame_count == 30:  # Print every 30 frames
+                current_time = time.time()
+                fps = frame_count / (current_time - last_fps_time)
+                print(f"FPS: {fps:.1f}")
+                print(f"Timings (ms): Clear={clear_time*1000:.1f}, Draw={draw_time*1000:.1f}, Display={display_time*1000:.1f}, Total={total_time*1000:.1f}")
+                frame_count = 0
+                last_fps_time = current_time
+            
+            # Target 30fps
+            target_frame_time = 1.0/30.0
+            sleep_time = max(0, target_frame_time - (time.time() - frame_start))
+            time.sleep(sleep_time)
             
     except KeyboardInterrupt:
         print("\nCleaning up...")
