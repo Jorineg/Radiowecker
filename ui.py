@@ -236,7 +236,7 @@ class UI:
         x = (self.display.width - text_width) // 2
         y = (self.display.height - 16) // 2
 
-        self.display.buffer.draw_text(x, y, volume_text)
+        self.display.buffer.draw_text(x, y, volume_text, size="8x16")
 
         bar_width = int((self.display.width * 0.8))
         bar_height = 4

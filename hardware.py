@@ -207,7 +207,7 @@ class HardwareInput:
                 self.check_gpio_buttons()
             else:
                 self.check_keyboard()
-            time.sleep(0.033)  # ~30 Hz polling rate
+            time.sleep(0.001)  # ~30 Hz polling rate
 
     def cleanup(self):
         """Cleanup GPIO and other resources"""
