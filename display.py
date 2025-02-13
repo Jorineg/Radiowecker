@@ -209,9 +209,17 @@ class OLEDDisplay(Display):
         self.device.command(self.SET_CHARGE_PUMP)
         self.device.command(0x14)  # Enable charge pump
         
-        # Memory addressing settings
+        # Memory addressing settings - set once during init
         self.device.command(self.SET_MEM_ADDR)
         self.device.command(0x00)  # Horizontal addressing mode
+        
+        # Set full display address range once during init
+        self.device.command(self.SET_COL_ADDR)
+        self.device.command(0)
+        self.device.command(self.width - 1)
+        self.device.command(self.SET_PAGE_ADDR)
+        self.device.command(0)
+        self.device.command(self.buffer.pages - 1)
         
         # Set segment re-map: column address 127 is mapped to SEG0
         self.device.command(self.SET_SEG_REMAP | 0x00)  # No flip
@@ -246,15 +254,7 @@ class OLEDDisplay(Display):
             
             # Only update if buffer changed
             if self.display_buffer != self.last_buffer:
-                # Set address range for entire display
-                self.device.command(self.SET_COL_ADDR)
-                self.device.command(0)
-                self.device.command(self.width - 1)
-                self.device.command(self.SET_PAGE_ADDR)
-                self.device.command(0)
-                self.device.command(self.buffer.pages - 1)
-                
-                # Write entire buffer in one operation
+                # Write entire buffer in one operation - no need to set address range
                 self.device.data(self.display_buffer)
                 
                 # Save current buffer
