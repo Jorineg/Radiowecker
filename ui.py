@@ -42,8 +42,8 @@ class UIState:
             "power": False,
             "source": False,
             "menu": False,
-            "backward": False,
-            "forward": False
+            "alarm1": False,
+            "alarm2": False
         }
 
     def get_current_source(self) -> str:
@@ -140,12 +140,12 @@ class UI:
         button_width = 1
         spacing = (self.display.width - (5 * button_width)) // 6
 
-        buttons = ["power", "source", "menu", "backward", "forward"]
+        buttons = ["power", "source", "menu", "alarm1", "alarm2"]
 
         for i, button in enumerate(buttons):
             x = spacing + i * (button_width + spacing)
             if self.hardware_in.buttons[button].pressed:
-                self.display.buffer.draw_rect(x, y, button_width, button_width, True)
+                self.display.buffer.set_pixel(x, y, True)
 
     def render_normal(self):
         """Render normal mode content"""

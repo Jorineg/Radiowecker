@@ -50,8 +50,8 @@ class PygameManager:
             pygame.K_p: "power",
             pygame.K_s: "source",
             pygame.K_m: "menu",
-            pygame.K_LEFT: "backward",
-            pygame.K_RIGHT: "forward",
+            pygame.K_LEFT: "alarm1",   # Changed from backward
+            pygame.K_RIGHT: "alarm2",  # Changed from forward
         }
         self.running = True
 
