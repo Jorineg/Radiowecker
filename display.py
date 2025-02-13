@@ -212,8 +212,11 @@ class OLEDDisplay(Display):
         self.device.command(self.SET_MEM_ADDR)
         self.device.command(0x00)  # Horizontal addressing mode
         
-        self.device.command(self.SET_SEG_REMAP | 0x01)
-        self.device.command(self.SET_COM_OUT_DIR | 0x08)
+        # Set segment re-map: column address 127 is mapped to SEG0
+        self.device.command(self.SET_SEG_REMAP | 0x00)  # No flip
+        
+        # Set COM output scan direction: normal mode
+        self.device.command(self.SET_COM_OUT_DIR | 0x00)  # Normal mode
         
         self.device.command(self.SET_COM_PIN_CFG)
         self.device.command(0x12)
@@ -237,11 +240,8 @@ class OLEDDisplay(Display):
             return
             
         try:
-            # Flip buffer horizontally (SSD1306 requirement)
-            for page in range(self.buffer.pages):
-                start = page * self.width
-                end = start + self.width
-                self.display_buffer[start:end] = bytes(reversed(self.buffer.buffer[start:end]))
+            # Copy buffer directly (no flipping needed anymore)
+            self.display_buffer[:] = self.buffer.buffer[:]
             
             # Set address range for entire display
             self.device.command(self.SET_COL_ADDR)
