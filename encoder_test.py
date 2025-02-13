@@ -10,12 +10,17 @@ def debug(msg):
     print(f"{time.time():.3f}: {msg}")
 
 class RotaryEncoder:
+    # Encoder sequence for clockwise rotation: 3,2,0,1,3
+    # Each position: (MSB) pin_a,pin_b (LSB)
+    SEQ_CW = [0b11, 0b10, 0b00, 0b01]  # 3,2,0,1
+    
     def __init__(self, pin_a, pin_b):
         self.pin_a = pin_a
         self.pin_b = pin_b
         self.value = 50  # Start at 50%
         self.last_time = time.time()
-        self.last_seq = 0
+        self.last_position = -1
+        self.turn_count = 0
         
         # Setup GPIO
         GPIO.setmode(GPIO.BCM)
@@ -25,47 +30,63 @@ class RotaryEncoder:
         GPIO.setup(pin_a, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         GPIO.setup(pin_b, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         
-        # Read initial states and compute sequence number
-        a = GPIO.input(pin_a)
-        b = GPIO.input(pin_b)
-        self.last_seq = (a << 1) | b
+        # Get initial position
+        self._read_position()
         
         debug(f"Initialized encoder on pins A={pin_a}, B={pin_b}")
-        debug(f"Initial state: seq={self.last_seq} (A={a}, B={b})")
+        debug(f"Initial position: {self.last_position}")
+
+    def _read_position(self):
+        """Read current position in sequence (0-3)"""
+        a = GPIO.input(self.pin_a)
+        b = GPIO.input(self.pin_b)
+        return (a << 1) | b
 
     def update(self):
         """Check encoder state and return change (-2, 0, or +2)"""
-        a = GPIO.input(self.pin_a)
-        b = GPIO.input(self.pin_b)
+        position = self._read_position()
         
-        # Convert states to sequence number (0-3)
-        seq = (a << 1) | b
-        
-        # Compute difference from last position
-        diff = (seq - self.last_seq) % 4
-        
-        # Only process if changed
-        if diff != 0:
+        # First reading
+        if self.last_position < 0:
+            self.last_position = position
+            return 0
+            
+        # Position changed
+        if position != self.last_position:
             current_time = time.time()
             dt = current_time - self.last_time
-            debug(f"State: seq={seq} (A={a}, B={b}) diff={diff} dt={dt*1000:.1f}ms")
+            debug(f"Position: {position} (was {self.last_position}) dt={dt*1000:.1f}ms")
             
-            # Store timing for debugging
+            # Find positions in sequence
+            old_idx = self.SEQ_CW.index(self.last_position)
+            new_idx = self.SEQ_CW.index(position)
+            
+            # Compute step
+            step = (new_idx - old_idx) % 4
+            if step == 1:  # Next in sequence = CW
+                self.turn_count += 1
+                if self.turn_count >= 4:  # Complete rotation
+                    self.turn_count = 0
+                    self.value = min(100, self.value + 2)
+                    debug(f"CW -> {self.value}%")
+                    self.last_position = position
+                    self.last_time = current_time
+                    return 2
+            elif step == 3:  # Previous in sequence = CCW
+                self.turn_count -= 1
+                if self.turn_count <= -4:  # Complete rotation
+                    self.turn_count = 0
+                    self.value = max(0, self.value - 2)
+                    debug(f"CCW -> {self.value}%")
+                    self.last_position = position
+                    self.last_time = current_time
+                    return -2
+            else:  # Invalid sequence
+                self.turn_count = 0
+                
+            self.last_position = position
             self.last_time = current_time
             
-            # Store new state
-            self.last_seq = seq
-            
-            # Return change value
-            if diff == 1:  # Clockwise
-                self.value = min(100, self.value + 2)
-                debug(f"CW -> {self.value}%")
-                return 2
-            elif diff == 3:  # Counter-clockwise
-                self.value = max(0, self.value - 2)
-                debug(f"CCW -> {self.value}%")
-                return -2
-        
         return 0
 
     def set_volume(self, volume):
