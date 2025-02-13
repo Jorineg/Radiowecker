@@ -6,7 +6,7 @@ import threading
 from gpio_pins import *  # Import GPIO pin definitions
 try:
     import RPi.GPIO as GPIO
-
+    GPIO.setmode(GPIO.BCM)  # Set mode once at import
     RPI_HARDWARE = True
 except ImportError:
     RPI_HARDWARE = False
@@ -121,8 +121,6 @@ class HardwareInput:
 
     def setup_gpio(self):
         """Setup GPIO pins for buttons and encoders"""
-        GPIO.setmode(GPIO.BCM)
-        
         # Setup touch buttons with pull-down (active high)
         for button in self.buttons.values():
             GPIO.setup(button.pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
@@ -219,7 +217,6 @@ class HardwareInput:
 class HardwareOutput:
     def __init__(self):
         if RPI_HARDWARE:
-            GPIO.setmode(GPIO.BCM)
             # Setup PWM pins for audio amp enable
             GPIO.setup(AMP_MUTE, GPIO.OUT)  # Amp enable
             self.amp_enabled = False
