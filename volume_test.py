@@ -100,7 +100,9 @@ class RotaryEncoder:
         self.callback = callback
         self.last_position = -1
         self.turn_count = 0
+        self.accumulated_turns = 0  # Accumulated turns since last callback
         self.running = True
+        self._lock = threading.Lock()  # Lock for thread-safe access
         
         # Setup GPIO pins with pull-up
         GPIO.setup(pin_a, GPIO.IN, pull_up_down=GPIO.PUD_UP)
@@ -139,14 +141,14 @@ class RotaryEncoder:
                         self.turn_count += 1
                         if self.turn_count >= 2:  # Complete rotation
                             self.turn_count = 0
-                            self.callback(2)
-                            print(f"CW turn detected")
+                            with self._lock:
+                                self.accumulated_turns += 1
                     elif step == 3:  # Previous in sequence = CCW
                         self.turn_count -= 1
                         if self.turn_count <= -2:  # Complete rotation
                             self.turn_count = 0
-                            self.callback(-2)
-                            print(f"CCW turn detected")
+                            with self._lock:
+                                self.accumulated_turns -= 1
                     else:  # Invalid sequence
                         self.turn_count = 0
                 except ValueError:
@@ -156,7 +158,18 @@ class RotaryEncoder:
                 self.last_position = position
             
             # Short sleep between polls
-            time.sleep(0.0005)  # 0.5ms polling
+            time.sleep(0.0001)  # 0.1ms polling
+    
+    def process_turns(self):
+        """Process accumulated turns and call callback if needed"""
+        with self._lock:
+            turns = self.accumulated_turns
+            self.accumulated_turns = 0
+            
+        if turns != 0:
+            self.callback(turns * 2)  # *2 to maintain same volume change per turn
+            return True
+        return False
     
     def stop(self):
         """Stop the polling thread"""
@@ -179,11 +192,17 @@ def main():
     current_volume = volume._get_current_volume()
     volume_overlay_timeout = 0
     OVERLAY_DURATION = 1.0  # Show volume for 1 second
+    last_volume_update = 0
+    MIN_UPDATE_INTERVAL = 0.02  # Maximum 50 updates per second
     
     def volume_callback(delta):
-        nonlocal current_volume, volume_overlay_timeout
+        nonlocal current_volume, volume_overlay_timeout, last_volume_update
+        current_time = time.time()
+        
+        # Update volume
         current_volume = volume.adjust_volume(delta)
-        volume_overlay_timeout = time.time() + OVERLAY_DURATION
+        volume_overlay_timeout = current_time + OVERLAY_DURATION
+        last_volume_update = current_time
         print(f"Volume: {current_volume}%")  # Debug output
     
     # Initialize rotary encoder with callback
@@ -191,6 +210,11 @@ def main():
     
     try:
         while True:
+            # Process encoder turns if enough time has passed
+            current_time = time.time()
+            if current_time - last_volume_update >= MIN_UPDATE_INTERVAL:
+                encoder.process_turns()
+            
             # Clear display buffer
             display.buffer.clear()
             
@@ -221,7 +245,7 @@ def main():
             display.show()
             
             # Small sleep to prevent CPU hogging
-            time.sleep(0.02)  # 50fps display update
+            time.sleep(0.01)  # 100fps main loop
             
     except KeyboardInterrupt:
         print("\nCleaning up...")
