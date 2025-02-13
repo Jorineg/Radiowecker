@@ -215,6 +215,8 @@ def main():
     # For FPS calculation
     frame_count = 0
     last_fps_time = time.time()
+    next_frame_time = time.time()
+    FRAME_TIME = 1.0/30.0  # Target 30fps
     
     try:
         while True:
@@ -224,59 +226,64 @@ def main():
             if frame_start - last_volume_update >= MIN_UPDATE_INTERVAL:
                 encoder.process_turns()
             
-            # Clear display buffer
-            t1 = time.time()
-            display.buffer.clear()
-            t2 = time.time()
-            
-            # Show volume overlay if timeout not reached
-            if time.time() < volume_overlay_timeout:
-                # Draw volume text
-                volume_text = f"{current_volume}%"
-                text_width = len(volume_text) * 9
-                x = (display.width - text_width) // 2
-                y = (display.height - 16) // 2
-                display.buffer.draw_text(x, y, volume_text, size="8x16")
+            # Only update display if we're showing volume or it's time for next frame
+            if frame_start >= next_frame_time or time.time() < volume_overlay_timeout:
+                # Clear display buffer
+                t1 = time.time()
+                display.buffer.clear()
+                t2 = time.time()
                 
-                # Draw volume bar
-                bar_width = int((display.width * 0.8))
-                bar_height = 4
-                x = (display.width - bar_width) // 2
-                y = display.height - 10
+                # Show volume overlay if timeout not reached
+                if time.time() < volume_overlay_timeout:
+                    # Draw volume text
+                    volume_text = f"{current_volume}%"
+                    text_width = len(volume_text) * 9
+                    x = (display.width - text_width) // 2
+                    y = (display.height - 16) // 2
+                    display.buffer.draw_text(x, y, volume_text, size="8x16")
+                    
+                    # Draw volume bar
+                    bar_width = int((display.width * 0.8))
+                    bar_height = 4
+                    x = (display.width - bar_width) // 2
+                    y = display.height - 10
+                    
+                    # Background bar
+                    display.buffer.draw_rect(x, y, bar_width, bar_height, False)
+                    
+                    # Filled portion
+                    filled_width = int((bar_width * current_volume) / 100)
+                    if filled_width > 0:
+                        display.buffer.draw_rect(x, y, filled_width, bar_height, True)
+                t3 = time.time()
                 
-                # Background bar
-                display.buffer.draw_rect(x, y, bar_width, bar_height, False)
+                # Update physical display
+                display.show()
+                t4 = time.time()
                 
-                # Filled portion
-                filled_width = int((bar_width * current_volume) / 100)
-                if filled_width > 0:
-                    display.buffer.draw_rect(x, y, filled_width, bar_height, True)
-            t3 = time.time()
+                # Calculate timings
+                clear_time = t2 - t1
+                draw_time = t3 - t2
+                display_time = t4 - t3
+                total_time = t4 - frame_start
+                
+                # Update FPS counter
+                frame_count += 1
+                if frame_count == 30:  # Print every 30 frames
+                    current_time = time.time()
+                    fps = frame_count / (current_time - last_fps_time)
+                    print(f"FPS: {fps:.1f}")
+                    print(f"Timings (ms): Clear={clear_time*1000:.1f}, Draw={draw_time*1000:.1f}, Display={display_time*1000:.1f}, Total={total_time*1000:.1f}")
+                    frame_count = 0
+                    last_fps_time = current_time
+                
+                # Schedule next frame
+                next_frame_time = frame_start + FRAME_TIME
             
-            # Update physical display
-            display.show()
-            t4 = time.time()
-            
-            # Calculate timings
-            clear_time = t2 - t1
-            draw_time = t3 - t2
-            display_time = t4 - t3
-            total_time = t4 - frame_start
-            
-            # Update FPS counter
-            frame_count += 1
-            if frame_count == 30:  # Print every 30 frames
-                current_time = time.time()
-                fps = frame_count / (current_time - last_fps_time)
-                print(f"FPS: {fps:.1f}")
-                print(f"Timings (ms): Clear={clear_time*1000:.1f}, Draw={draw_time*1000:.1f}, Display={display_time*1000:.1f}, Total={total_time*1000:.1f}")
-                frame_count = 0
-                last_fps_time = current_time
-            
-            # Target 30fps
-            target_frame_time = 1.0/30.0
-            sleep_time = max(0, target_frame_time - (time.time() - frame_start))
-            time.sleep(sleep_time)
+            # Small sleep to prevent CPU hogging if we have time
+            sleep_time = max(0, next_frame_time - time.time())
+            if sleep_time > 0.001:  # Only sleep if we have more than 1ms
+                time.sleep(sleep_time)
             
     except KeyboardInterrupt:
         print("\nCleaning up...")

@@ -184,6 +184,7 @@ class OLEDDisplay(Display):
                 
                 # Pre-allocate display buffer using pages from base class
                 self.display_buffer = bytearray(self.width * self.buffer.pages)
+                self.last_buffer = bytearray(self.width * self.buffer.pages)
             except Exception as e:
                 print(f"Warning: Could not initialize OLED display: {e}")
                 self.device = None
@@ -243,16 +244,22 @@ class OLEDDisplay(Display):
             # Copy buffer directly (no flipping needed anymore)
             self.display_buffer[:] = self.buffer.buffer[:]
             
-            # Set address range for entire display
-            self.device.command(self.SET_COL_ADDR)
-            self.device.command(0)
-            self.device.command(self.width - 1)
-            self.device.command(self.SET_PAGE_ADDR)
-            self.device.command(0)
-            self.device.command(self.buffer.pages - 1)
-            
-            # Write entire buffer in one operation
-            self.device.data(self.display_buffer)
+            # Only update if buffer changed
+            if self.display_buffer != self.last_buffer:
+                # Set address range for entire display
+                self.device.command(self.SET_COL_ADDR)
+                self.device.command(0)
+                self.device.command(self.width - 1)
+                self.device.command(self.SET_PAGE_ADDR)
+                self.device.command(0)
+                self.device.command(self.buffer.pages - 1)
+                
+                # Write entire buffer in one operation
+                self.device.data(self.display_buffer)
+                
+                # Save current buffer
+                self.last_buffer[:] = self.display_buffer[:]
+                
         except Exception as e:
             print(f"Display update failed: {e}")
             pass
