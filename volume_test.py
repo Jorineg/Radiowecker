@@ -19,20 +19,31 @@ class VolumeControl:
 
     def _get_current_volume(self):
         try:
-            output = subprocess.check_output(['amixer', 'get', 'Master']).decode()
-            for line in output.split('\n'):
-                if 'Front Left:' in line:
-                    return int(line.split('[')[1].split('%')[0])
+            # Try different mixer controls
+            for control in ['PCM', 'Master']:
+                try:
+                    output = subprocess.check_output(['amixer', 'get', control]).decode()
+                    for line in output.split('\n'):
+                        if 'Playback' in line and '%' in line:
+                            return int(line.split('[')[1].split('%')[0])
+                except:
+                    continue
         except:
-            return 50
+            pass
         return 50
 
     def _set_volume(self, volume):
         volume = max(0, min(100, volume))
         try:
-            subprocess.run(['amixer', 'set', 'Master', f'{volume}%'], 
-                         stdout=subprocess.DEVNULL, 
-                         stderr=subprocess.DEVNULL)
+            # Try different mixer controls
+            for control in ['PCM', 'Master']:
+                try:
+                    subprocess.run(['amixer', 'set', control, f'{volume}%'], 
+                                stdout=subprocess.DEVNULL, 
+                                stderr=subprocess.DEVNULL)
+                    return volume
+                except:
+                    continue
         except:
             pass
         return volume
@@ -50,10 +61,6 @@ class RotaryEncoder:
         self.last_encoded = 0
         self.value = 0
         
-        # Ensure pins are properly cleaned up
-        GPIO.remove_event_detect(pin_a)
-        GPIO.remove_event_detect(pin_b)
-        
         # Setup GPIO pins with pull-up
         GPIO.setup(pin_a, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         GPIO.setup(pin_b, GPIO.IN, pull_up_down=GPIO.PUD_UP)
@@ -66,31 +73,33 @@ class RotaryEncoder:
         try:
             GPIO.add_event_detect(pin_a, GPIO.BOTH, callback=self._update, bouncetime=1)
             GPIO.add_event_detect(pin_b, GPIO.BOTH, callback=self._update, bouncetime=1)
-        except RuntimeError as e:
-            print(f"Warning: Could not set up GPIO events ({e}). Falling back to polling mode.")
-            self.use_polling = True
-        else:
             self.use_polling = False
+        except:
+            print("Warning: Could not set up GPIO events. Falling back to polling mode.")
+            self.use_polling = True
 
     def _update(self, channel=None):
-        state_a = GPIO.input(self.pin_a)
-        state_b = GPIO.input(self.pin_b)
-        
-        if state_a != self.last_state_a or state_b != self.last_state_b:
-            # Determine rotation direction from state changes
-            if self.last_state_a == self.last_state_b:
-                if state_a != state_b:
-                    # Clockwise
-                    self.value += 2
-                    self.callback(2)
-            else:
-                if state_a == state_b:
-                    # Counter-clockwise
-                    self.value -= 2
-                    self.callback(-2)
+        try:
+            state_a = GPIO.input(self.pin_a)
+            state_b = GPIO.input(self.pin_b)
             
-            self.last_state_a = state_a
-            self.last_state_b = state_b
+            if state_a != self.last_state_a or state_b != self.last_state_b:
+                # Determine rotation direction from state changes
+                if self.last_state_a == self.last_state_b:
+                    if state_a != state_b:
+                        # Clockwise
+                        self.value += 2
+                        self.callback(2)
+                else:
+                    if state_a == state_b:
+                        # Counter-clockwise
+                        self.value -= 2
+                        self.callback(-2)
+                
+                self.last_state_a = state_a
+                self.last_state_b = state_b
+        except:
+            pass
 
     def check_state(self):
         """Polling mode update - call this regularly if events failed"""
@@ -98,9 +107,6 @@ class RotaryEncoder:
             self._update()
 
 def main():
-    # Cleanup any previous GPIO state
-    GPIO.cleanup()
-    
     # Setup GPIO
     GPIO.setmode(GPIO.BCM)
     GPIO.setwarnings(False)
