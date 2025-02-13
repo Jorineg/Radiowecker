@@ -129,7 +129,7 @@ def main():
                 # encoder.set_volume(new_volume)
             
             # Small sleep to prevent CPU hogging
-            time.sleep(0.001)  # 1ms polling
+            time.sleep(0.0001)  # 1ms polling
             
     except KeyboardInterrupt:
         print("\nExiting...")
