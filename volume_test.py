@@ -2,7 +2,6 @@
 
 import time
 import threading
-import queue
 import RPi.GPIO as GPIO
 from display import OLEDDisplay, PygameDisplay
 from gpio_pins import ROTARY1_A, ROTARY1_B, ROTARY1_SW
@@ -24,10 +23,9 @@ class RotaryEncoder:
         self.callback = callback
         self.last_position = -1
         self.turn_count = 0
-        self.last_time = time.time()
+        self.accumulated_ticks = 0  # Gesammelte Ticks
+        self.last_callback = 0  # Zeit des letzten Callbacks
         self._running = True
-        self._lock = threading.Lock()
-        self._events = queue.Queue()
         
         # Setup GPIO
         GPIO.setmode(GPIO.BCM)
@@ -37,12 +35,7 @@ class RotaryEncoder:
         # Get initial position
         self._read_position()
         
-        # Start polling thread (high priority)
-        self.poll_thread = threading.Thread(target=self._polling_thread)
-        self.poll_thread.daemon = True
-        self.poll_thread.start()
-        
-        # Start callback thread (lower priority)
+        # Start callback thread
         self.callback_thread = threading.Thread(target=self._callback_thread)
         self.callback_thread.daemon = True
         self.callback_thread.start()
@@ -64,8 +57,6 @@ class RotaryEncoder:
             
         # Position changed
         if position != self.last_position:
-            current_time = time.time()
-            
             # Find positions in sequence
             try:
                 old_idx = self.SEQ_CW.index(self.last_position)
@@ -77,12 +68,12 @@ class RotaryEncoder:
                     self.turn_count += 1
                     if self.turn_count >= 2:  # Complete rotation
                         self.turn_count = 0
-                        self._events.put("CW")
+                        self.accumulated_ticks += 1  # Ein Tick nach oben
                 elif step == 3:  # Previous in sequence = CCW
                     self.turn_count -= 1
                     if self.turn_count <= -2:  # Complete rotation
                         self.turn_count = 0
-                        self._events.put("CCW")
+                        self.accumulated_ticks -= 1  # Ein Tick nach unten
                 else:  # Invalid sequence
                     self.turn_count = 0
             except ValueError:
@@ -90,41 +81,25 @@ class RotaryEncoder:
                 self.turn_count = 0
                 
             self.last_position = position
-            self.last_time = current_time
-            
-    def _polling_thread(self):
-        """Dedicated high-speed polling thread"""
-        while self._running:
-            self.update()  # Poll encoder
-            time.sleep(0.0001)  # 0.1ms polling interval
             
     def _callback_thread(self):
-        """Separate thread for processing events"""
+        """Thread für periodische Callbacks"""
         while self._running:
-            try:
-                # Get all pending events
-                events = []
-                while True:
-                    try:
-                        events.append(self._events.get_nowait())
-                    except queue.Empty:
-                        break
+            now = time.time()
+            
+            # Alle 10ms prüfen
+            if now - self.last_callback >= 0.01:  # 10ms
+                # Wenn Ticks vorhanden, Callback aufrufen
+                if self.accumulated_ticks != 0:
+                    ticks = self.accumulated_ticks
+                    self.accumulated_ticks = 0  # Reset
+                    self.callback(ticks)  # Callback mit Anzahl der Ticks
+                self.last_callback = now
                 
-                # Process events if we have any
-                if events:
-                    # Count net rotations (CW = +1, CCW = -1)
-                    net_rotation = sum(1 if e == "CW" else -1 for e in events)
-                    if net_rotation != 0:
-                        self.callback("CW" if net_rotation > 0 else "CCW")
-                    
-                time.sleep(0.01)  # 10ms between callback processing
-                
-            except:
-                pass  # Ignore any errors in callback
+            time.sleep(0.001)  # 1ms sleep
             
     def stop(self):
         self._running = False
-        self.poll_thread.join()
         self.callback_thread.join()
 
 def main():
@@ -138,11 +113,12 @@ def main():
     # Initialize volume control
     volume = VolumeControl()
     
-    def handle_rotation(direction):
-        if direction == "CW":
-            vol = volume.volume_up()
+    def handle_rotation(ticks):
+        # Ticks * 2 für schnellere Änderung
+        if ticks > 0:
+            vol = volume.volume_up(step=ticks * 2)
         else:
-            vol = volume.volume_down()
+            vol = volume.volume_down(step=-ticks * 2)
             
         # Update display
         display.buffer.clear()
@@ -175,7 +151,8 @@ def main():
     
     try:
         while True:
-            time.sleep(0.1)
+            encoder.update()  # Poll encoder
+            time.sleep(0.0001)  # 0.1ms polling interval
             
     except KeyboardInterrupt:
         encoder.stop()
