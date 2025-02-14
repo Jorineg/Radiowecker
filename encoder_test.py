@@ -4,6 +4,7 @@ import time
 import subprocess
 import RPi.GPIO as GPIO
 from gpio_pins import ROTARY1_A, ROTARY1_B
+import numpy as np
 
 # Debug output
 def debug(msg):
@@ -118,9 +119,11 @@ def main():
     try:
         # Create encoder
         encoder = RotaryEncoder(ROTARY1_A, ROTARY1_B)
-        
+        times = np.array([])
+
         while True:
             # Check encoder
+            times = np.append(times, time.time())
             change = encoder.update()
             
             # Update volume if changed
@@ -133,6 +136,9 @@ def main():
             
     except KeyboardInterrupt:
         print("\nExiting...")
+        # calculate average time between updates
+        avg_time = np.mean(times[1:] - times[:-1])
+        print(f"Average time between updates: {avg_time*1000:.1f}ms")
     finally:
         GPIO.cleanup()
 

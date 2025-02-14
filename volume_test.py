@@ -160,7 +160,7 @@ def main():
     except KeyboardInterrupt:
         # calculate mean interval of times
         mean_interval = sum(times[1:] - times[:-1]) / len(times[1:])
-        print(f"Mean interval: {mean_interval:.4f}s")
+        print(f"Mean interval: {mean_interval*1000:.1f}ms")
         encoder.stop()
         GPIO.cleanup()
 
