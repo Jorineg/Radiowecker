@@ -12,24 +12,34 @@ class VolumeControl:
             self.mixer = None
             
     def _scale_to_hardware(self, volume: int) -> int:
-        """Convert linear volume (0-100) to exponential scale for more natural volume control
+        """Convert linear volume (0-100) to hardware scale
         
-        At volume = 0: -99999.99dB (mute)
-        At volume = 25: ~ -40dB
-        At volume = 50: ~ -20dB
-        At volume = 75: ~ -10dB
-        At volume = 100: 0dB
+        Maps the user-visible volume (0-100) to hardware volume (0-100)
+        in a way that provides useful volume control:
+        
+        User    Hardware    dB
+        0       0          mute
+        20      50         -51.5dB  (very quiet)
+        40      75         -25.8dB  (quiet)
+        60      87         -13.4dB  (medium)
+        80      95         -5.2dB   (loud)
+        100     100        0dB      (maximum)
         """
         if volume <= 0:
             return 0
         if volume >= 100:
             return 100
             
-        # Exponential scaling for more natural volume control
-        # This creates a curve that gives more control in the useful volume range
-        exp = 3  # Adjust this to change the curve shape
-        scaled = math.pow(volume / 100.0, exp) * 100
-        return int(scaled)
+        # Linear interpolation in three ranges for better control
+        if volume < 20:
+            # 0-20 -> 0-50 (very low volumes)
+            return int(volume * 2.5)
+        elif volume < 60:
+            # 20-60 -> 50-87 (normal listening range)
+            return int(50 + (volume - 20) * 0.925)
+        else:
+            # 60-100 -> 87-100 (high volumes)
+            return int(87 + (volume - 60) * 0.325)
         
     def get_volume(self) -> int:
         """Get current volume level (0-100)"""
@@ -37,19 +47,26 @@ class VolumeControl:
             return 50
             
         try:
-            hw_vol = self.mixer.getvolume()[0]  # Returns list of volumes for each channel
-            # Convert back from hardware scale to linear
-            return int(math.pow(hw_vol / 100.0, 1/3) * 100)
+            hw_vol = self.mixer.getvolume()[0]
+            
+            # Convert hardware volume back to user volume
+            if hw_vol == 0:
+                return 0
+            elif hw_vol <= 50:
+                # 0-50 -> 0-20
+                return int(hw_vol / 2.5)
+            elif hw_vol <= 87:
+                # 50-87 -> 20-60
+                return int(20 + (hw_vol - 50) / 0.925)
+            else:
+                # 87-100 -> 60-100
+                return int(60 + (hw_vol - 87) / 0.325)
+                
         except:
             return 50
 
     def set_volume(self, volume: int):
-        """Set volume level (0-100)
-        
-        The input volume is treated as a linear scale (0-100)
-        but is converted to an exponential scale for the hardware
-        to provide more natural volume control.
-        """
+        """Set volume level (0-100)"""
         if not self.mixer:
             return
             

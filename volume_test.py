@@ -57,7 +57,7 @@ class RotaryEncoder:
                     
                     self.sequence = new_sequence
                     
-            time.sleep(0.001)  # Small delay to prevent CPU hogging
+            time.sleep(0.0002)  # Small delay to prevent CPU hogging: 0.2ms
             
     def stop(self):
         self._running = False
@@ -82,8 +82,28 @@ def main():
             
         # Update display
         display.buffer.clear()
-        display.buffer.draw_text(0, 0, f"Volume: {vol}%", size="5x8")
-        display.buffer.draw_rect(0, 20, int(vol * 1.28), 10, fill=True)  # Volume bar
+        
+        # Center volume text
+        text = f"Volume: {vol}%"
+        text_width = len(text) * 9  # 8x16 font is 9 pixels wide per char
+        x = (display.width - text_width) // 2
+        y = (display.height - 36) // 2  # Center vertically, leaving space for bar
+        display.buffer.draw_text(x, y, text, size="8x16")
+        
+        # Center volume bar
+        bar_width = int(display.width * 0.8)  # 80% of display width
+        bar_height = 10
+        x = (display.width - bar_width) // 2
+        y = y + 26  # 10 pixels below text
+        
+        # Draw background bar
+        display.buffer.draw_rect(x, y, bar_width, bar_height, False)
+        
+        # Draw filled portion
+        if vol > 0:
+            filled_width = int(bar_width * vol / 100)
+            display.buffer.draw_rect(x, y, filled_width, bar_height, True)
+            
         display.show()
     
     # Initialize rotary encoder
