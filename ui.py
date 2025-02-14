@@ -263,10 +263,10 @@ class UI:
         if button.startswith(("volume_", "control_")):
             if pressed:
                 if button == "volume_cw":
-                    self.state.volume = self.state.volume_control.volume_up(5)
+                    self.state.volume = self.state.volume_control.volume_up(2)
                     self.state.volume_overlay_timeout = current_time + self.VOLUME_OVERLAY_DURATION
                 elif button == "volume_ccw":
-                    self.state.volume = self.state.volume_control.volume_down(5)
+                    self.state.volume = self.state.volume_control.volume_down(2)
                     self.state.volume_overlay_timeout = current_time + self.VOLUME_OVERLAY_DURATION
                 elif button == "control_cw":
                     # self.audio.next_station()
@@ -296,10 +296,10 @@ class UI:
     def handle_encoder(self, direction: str):
         """Handle encoder events"""
         if direction == "cw":
-            self.state.volume = self.state.volume_control.volume_up(5)
+            self.state.volume = self.state.volume_control.volume_up(2)
             self.state.volume_overlay_timeout = time.time() + self.VOLUME_OVERLAY_DURATION
         elif direction == "ccw":
-            self.state.volume = self.state.volume_control.volume_down(5)
+            self.state.volume = self.state.volume_control.volume_down(2)
             self.state.volume_overlay_timeout = time.time() + self.VOLUME_OVERLAY_DURATION
 
     def select_next_file(self):
