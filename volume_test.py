@@ -86,18 +86,10 @@ class RotaryEncoder:
     def _callback_thread(self):
         """Thread für periodische Callbacks"""
         while self._running:
-            now = time.time()
-            
-            # Alle 10ms prüfen
-            if now - self.last_callback >= 0.01:  # 10ms
-                # Wenn Ticks vorhanden, Callback aufrufen
-                if self.accumulated_ticks != 0:
-                    ticks = self.accumulated_ticks
-                    self.accumulated_ticks = 0  # Reset
-                    self.callback(ticks)  # Callback mit Anzahl der Ticks
-                self.last_callback = now
-                
-            time.sleep(0.001)  # 1ms sleep
+            if self.accumulated_ticks != 0:
+                self.callback(self.accumulated_ticks)  # Callback mit Anzahl der Ticks
+                self.accumulated_ticks = 0  # Reset
+            time.sleep(0.01)  # 10ms sleep
             
     def stop(self):
         self._running = False
