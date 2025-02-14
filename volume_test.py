@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import time
-import threading
 import RPi.GPIO as GPIO
 from display import OLEDDisplay, PygameDisplay
 from gpio_pins import ROTARY1_A, ROTARY1_B, ROTARY1_SW
@@ -12,8 +11,6 @@ import numpy as np
 ROTARY_A = ROTARY1_A  # Volume encoder pins
 ROTARY_B = ROTARY1_B
 ROTARY_SW = ROTARY1_SW
-
-last_polling = time.time()
 
 class RotaryEncoder:
     # Encoder sequence for clockwise rotation: 3,2,0,1,3
@@ -26,11 +23,10 @@ class RotaryEncoder:
         self.callback = callback
         self.last_position = -1
         self.turn_count = 0
-        self.accumulated_ticks = 0  # Gesammelte Ticks
-        self.last_callback = 0  # Zeit des letzten Callbacks
+        self.last_time = time.time()
         self._running = True
         
-        # Setup GPIO
+        # Setup GPIO genau wie in encoder_test
         GPIO.setmode(GPIO.BCM)
         GPIO.setwarnings(False)  # Wichtig!
         GPIO.setup(pin_a, GPIO.IN, pull_up_down=GPIO.PUD_UP)
@@ -39,11 +35,6 @@ class RotaryEncoder:
         # Get initial position
         self._read_position()
         
-        # Start callback thread
-        self.callback_thread = threading.Thread(target=self._callback_thread)
-        self.callback_thread.daemon = True
-        self.callback_thread.start()
-        
     def _read_position(self):
         """Read current position in sequence (0-3)"""
         a = GPIO.input(self.pin_a)
@@ -51,20 +42,19 @@ class RotaryEncoder:
         return (a << 1) | b
         
     def update(self):
-        """Check encoder state and update if needed"""
+        """Check encoder state and return change"""
         position = self._read_position()
         
-        global last_polling
-        time_delta = time.time() - last_polling
-        last_polling = time.time()
-
         # First reading
         if self.last_position < 0:
             self.last_position = position
-            return
+            return 0
             
         # Position changed
         if position != self.last_position:
+            current_time = time.time()
+            dt = current_time - self.last_time
+            
             # Find positions in sequence
             try:
                 old_idx = self.SEQ_CW.index(self.last_position)
@@ -72,38 +62,38 @@ class RotaryEncoder:
                 
                 # Compute step
                 step = (new_idx - old_idx) % 4
-
-  
-                print(f"old={old_idx}, new={new_idx}, step={step}, tc={self.turn_count}, at={self.accumulated_ticks}, td={time_delta*1000:.1f}ms")
+                print(f"Position: {position} (was {self.last_position}) dt={dt*1000:.1f}ms")
+                
                 if step == 1:  # Next in sequence = CW
                     self.turn_count += 1
                     if self.turn_count >= 2:  # Complete rotation
                         self.turn_count = 0
-                        self.accumulated_ticks += 1  # Ein Tick nach oben
+                        self.last_position = position
+                        self.last_time = current_time
+                        self.callback(1)  # Ein Tick nach oben
+                        return 1
                 elif step == 3:  # Previous in sequence = CCW
                     self.turn_count -= 1
                     if self.turn_count <= -2:  # Complete rotation
                         self.turn_count = 0
-                        self.accumulated_ticks -= 1  # Ein Tick nach unten
+                        self.last_position = position
+                        self.last_time = current_time
+                        self.callback(-1)  # Ein Tick nach unten
+                        return -1
                 else:  # Invalid sequence
                     self.turn_count = 0
+                    
             except ValueError:
                 # Invalid state, reset
                 self.turn_count = 0
                 
             self.last_position = position
+            self.last_time = current_time
             
-    def _callback_thread(self):
-        """Thread für periodische Callbacks"""
-        while self._running:
-            if self.accumulated_ticks != 0:
-                self.callback(self.accumulated_ticks)  # Callback mit Anzahl der Ticks
-                self.accumulated_ticks = 0  # Reset
-            time.sleep(0.01)  # 10ms sleep
+        return 0
             
     def stop(self):
         self._running = False
-        self.callback_thread.join()
 
 def main():
     # Initialize display
@@ -119,9 +109,9 @@ def main():
     def handle_rotation(ticks):
         # Ticks * 2 für schnellere Änderung
         if ticks > 0:
-            vol = volume.volume_up(step=ticks * 2)
+            vol = volume.volume_up(step=2)
         else:
-            vol = volume.volume_down(step=-ticks * 2)
+            vol = volume.volume_down(step=2)
             
         # Update display
         display.buffer.clear()
