@@ -150,11 +150,16 @@ def main():
     encoder = RotaryEncoder(ROTARY_A, ROTARY_B, handle_rotation)
     
     try:
+        times = []
         while True:
+            times.append(time.time())
             encoder.update()  # Poll encoder
             time.sleep(0.0001)  # 0.1ms polling interval
             
     except KeyboardInterrupt:
+        # calculate mean interval of times
+        mean_interval = sum(times[1:] - times[:-1]) / len(times[1:])
+        print(f"Mean interval: {mean_interval:.4f}s")
         encoder.stop()
         GPIO.cleanup()
 
