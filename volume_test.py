@@ -65,6 +65,8 @@ class RotaryEncoder:
                 
                 # Compute step
                 step = (new_idx - old_idx) % 4
+
+                print(f"old={old_idx}, new={new_idx}, step={step}, tc={self.turn_count}, at={self.accumulated_ticks}")
                 if step == 1:  # Next in sequence = CW
                     self.turn_count += 1
                     if self.turn_count >= 2:  # Complete rotation
