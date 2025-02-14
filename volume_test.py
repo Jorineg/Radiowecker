@@ -14,19 +14,17 @@ ROTARY_B = ROTARY1_B
 ROTARY_SW = ROTARY1_SW
 
 class RotaryEncoder:
-    # Erlaubte Übergänge im Uhrzeigersinn: 11->10->00->01->11
-    VALID_TRANSITIONS = {
-        0b11: {0b10: "CW", 0b01: "CCW"},
-        0b10: {0b00: "CW", 0b11: "CCW"},
-        0b00: {0b01: "CW", 0b10: "CCW"},
-        0b01: {0b11: "CW", 0b00: "CCW"}
-    }
+    # Encoder sequence for clockwise rotation: 3,2,0,1,3
+    # Each position: (MSB) pin_a,pin_b (LSB)
+    SEQ_CW = [0b11, 0b10, 0b00, 0b01]  # 3,2,0,1
     
     def __init__(self, pin_a, pin_b, callback):
         self.pin_a = pin_a
         self.pin_b = pin_b
         self.callback = callback
-        self.last_state = None
+        self.last_position = -1
+        self.turn_count = 0
+        self.last_time = time.time()
         self._running = True
         self._lock = threading.Lock()
         self._events = queue.Queue()
@@ -35,6 +33,9 @@ class RotaryEncoder:
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(pin_a, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         GPIO.setup(pin_b, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        
+        # Get initial position
+        self._read_position()
         
         # Start polling thread (high priority)
         self.poll_thread = threading.Thread(target=self._polling_thread)
@@ -46,29 +47,56 @@ class RotaryEncoder:
         self.callback_thread.daemon = True
         self.callback_thread.start()
         
+    def _read_position(self):
+        """Read current position in sequence (0-3)"""
+        a = GPIO.input(self.pin_a)
+        b = GPIO.input(self.pin_b)
+        return (a << 1) | b
+        
+    def update(self):
+        """Check encoder state and update if needed"""
+        position = self._read_position()
+        
+        # First reading
+        if self.last_position < 0:
+            self.last_position = position
+            return
+            
+        # Position changed
+        if position != self.last_position:
+            current_time = time.time()
+            
+            # Find positions in sequence
+            try:
+                old_idx = self.SEQ_CW.index(self.last_position)
+                new_idx = self.SEQ_CW.index(position)
+                
+                # Compute step
+                step = (new_idx - old_idx) % 4
+                if step == 1:  # Next in sequence = CW
+                    self.turn_count += 1
+                    if self.turn_count >= 2:  # Complete rotation
+                        self.turn_count = 0
+                        self._events.put("CW")
+                elif step == 3:  # Previous in sequence = CCW
+                    self.turn_count -= 1
+                    if self.turn_count <= -2:  # Complete rotation
+                        self.turn_count = 0
+                        self._events.put("CCW")
+                else:  # Invalid sequence
+                    self.turn_count = 0
+            except ValueError:
+                # Invalid state, reset
+                self.turn_count = 0
+                
+            self.last_position = position
+            self.last_time = current_time
+            
     def _polling_thread(self):
         """Dedicated high-speed polling thread"""
         while self._running:
-            # Read current state
-            a = GPIO.input(self.pin_a)
-            b = GPIO.input(self.pin_b)
-            new_state = (a << 1) | b
-            
-            # On first read, just store state
-            if self.last_state is None:
-                self.last_state = new_state
-                continue
-                
-            # State changed
-            if new_state != self.last_state:
-                # Check if it's a valid transition
-                if new_state in self.VALID_TRANSITIONS.get(self.last_state, {}):
-                    direction = self.VALID_TRANSITIONS[self.last_state][new_state]
-                    self._events.put(direction)
-                
-                self.last_state = new_state
-                
-            time.sleep(0.0001)  # 0.1ms polling interval - super fast!
+            self.update()  # Poll encoder
+            time.sleep(0.0001)  # 0.1ms polling interval
             
     def _callback_thread(self):
         """Separate thread for processing events"""
