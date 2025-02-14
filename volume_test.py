@@ -32,6 +32,7 @@ class RotaryEncoder:
         
         # Setup GPIO
         GPIO.setmode(GPIO.BCM)
+        GPIO.setwarnings(False)  # Wichtig!
         GPIO.setup(pin_a, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         GPIO.setup(pin_b, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         
