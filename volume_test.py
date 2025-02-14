@@ -13,6 +13,8 @@ ROTARY_A = ROTARY1_A  # Volume encoder pins
 ROTARY_B = ROTARY1_B
 ROTARY_SW = ROTARY1_SW
 
+last_polling = time.time()
+
 class RotaryEncoder:
     # Encoder sequence for clockwise rotation: 3,2,0,1,3
     # Each position: (MSB) pin_a,pin_b (LSB)
@@ -51,6 +53,8 @@ class RotaryEncoder:
         """Check encoder state and update if needed"""
         position = self._read_position()
         
+        global last_polling
+        
         # First reading
         if self.last_position < 0:
             self.last_position = position
@@ -66,7 +70,9 @@ class RotaryEncoder:
                 # Compute step
                 step = (new_idx - old_idx) % 4
 
-                print(f"old={old_idx}, new={new_idx}, step={step}, tc={self.turn_count}, at={self.accumulated_ticks}")
+                time_delta = time.time() - last_polling
+                last_polling = time.time()
+                print(f"old={old_idx}, new={new_idx}, step={step}, tc={self.turn_count}, at={self.accumulated_ticks}, td={time_delta:.3f}")
                 if step == 1:  # Next in sequence = CW
                     self.turn_count += 1
                     if self.turn_count >= 2:  # Complete rotation
