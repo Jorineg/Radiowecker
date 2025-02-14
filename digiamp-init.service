@@ -1,0 +1,12 @@
+[Unit]
+Description=Initialize DigiAMP+ volume settings
+Before=bluealsa.service
+After=alsa-restore.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/amixer -c 0 cset numid=1 207,207
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
