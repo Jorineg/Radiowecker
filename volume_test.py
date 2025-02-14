@@ -6,6 +6,7 @@ import RPi.GPIO as GPIO
 from display import OLEDDisplay, PygameDisplay
 from gpio_pins import ROTARY1_A, ROTARY1_B, ROTARY1_SW
 from volume_control import VolumeControl
+import numpy as np
 
 # GPIO Pins für Rotary Encoder
 ROTARY_A = ROTARY1_A  # Volume encoder pins
@@ -150,9 +151,9 @@ def main():
     encoder = RotaryEncoder(ROTARY_A, ROTARY_B, handle_rotation)
     
     try:
-        times = []
+        times = np.array([])
         while True:
-            times.append(time.time())
+            times = np.append(times, time.time())
             encoder.update()  # Poll encoder
             time.sleep(0.0001)  # 0.1ms polling interval
             
