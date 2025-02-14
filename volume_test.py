@@ -13,13 +13,19 @@ ROTARY_B = ROTARY1_B
 ROTARY_SW = ROTARY1_SW
 
 class RotaryEncoder:
-    SEQ_CW = [0b11, 0b10, 0b00, 0b01]  # 3,2,0,1
+    # Erlaubte Übergänge im Uhrzeigersinn: 11->10->00->01->11
+    VALID_TRANSITIONS = {
+        0b11: {0b10: "CW", 0b01: "CCW"},
+        0b10: {0b00: "CW", 0b11: "CCW"},
+        0b00: {0b01: "CW", 0b10: "CCW"},
+        0b01: {0b11: "CW", 0b00: "CCW"}
+    }
     
     def __init__(self, pin_a, pin_b, callback):
         self.pin_a = pin_a
         self.pin_b = pin_b
         self.callback = callback
-        self.sequence = 0b11
+        self.last_state = None
         self._running = True
         self._lock = threading.Lock()
         
@@ -39,25 +45,23 @@ class RotaryEncoder:
                 # Read current state
                 a = GPIO.input(self.pin_a)
                 b = GPIO.input(self.pin_b)
+                new_state = (a << 1) | b
                 
-                # Calculate new state
-                new_sequence = (a << 1) | b
-                
-                if new_sequence != self.sequence:
-                    # Find positions in sequence
-                    old_pos = self.SEQ_CW.index(self.sequence)
-                    new_pos = self.SEQ_CW.index(new_sequence)
+                # On first read, just store state
+                if self.last_state is None:
+                    self.last_state = new_state
+                    continue
                     
-                    # Calculate direction
-                    direction = new_pos - old_pos
-                    if direction in [-3, 1]:  # Clockwise
-                        self.callback("CW")
-                    elif direction in [-1, 3]:  # Counter-clockwise
-                        self.callback("CCW")
+                # State changed
+                if new_state != self.last_state:
+                    # Check if it's a valid transition
+                    if new_state in self.VALID_TRANSITIONS.get(self.last_state, {}):
+                        direction = self.VALID_TRANSITIONS[self.last_state][new_state]
+                        self.callback(direction)
                     
-                    self.sequence = new_sequence
+                    self.last_state = new_state
                     
-            time.sleep(0.0002)  # Small delay to prevent CPU hogging: 0.2ms
+            time.sleep(0.0002)  # 0.2ms polling interval
             
     def stop(self):
         self._running = False
