@@ -2,15 +2,10 @@
 
 import time
 import threading
-import subprocess
 import RPi.GPIO as GPIO
 from display import OLEDDisplay, PygameDisplay
 from gpio_pins import ROTARY1_A, ROTARY1_B, ROTARY1_SW
 from volume_control import VolumeControl
-
-# For timing measurements
-last_frame_time = time.time()
-frame_times = []
 
 # GPIO Pins für Rotary Encoder
 ROTARY_A = ROTARY1_A  # Volume encoder pins
@@ -86,10 +81,10 @@ def main():
             vol = volume.volume_down()
             
         # Update display
-        display.clear()
-        display.draw_text(0, 0, f"Volume: {vol}%")
-        display.draw_rect(0, 20, int(vol * 1.28), 10, fill=True)  # Volume bar
-        display.update()
+        display.buffer.clear()
+        display.buffer.draw_text(0, 0, f"Volume: {vol}%", size="5x8")
+        display.buffer.draw_rect(0, 20, int(vol * 1.28), 10, fill=True)  # Volume bar
+        display.show()
     
     # Initialize rotary encoder
     encoder = RotaryEncoder(ROTARY_A, ROTARY_B, handle_rotation)
