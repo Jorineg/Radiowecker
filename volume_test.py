@@ -54,7 +54,10 @@ class RotaryEncoder:
         position = self._read_position()
         
         global last_polling
-        
+        time_delta = time.time() - last_polling
+        last_polling = time.time()
+        print(f"time_delta={time_delta*1000:.1f}ms")
+
         # First reading
         if self.last_position < 0:
             self.last_position = position
@@ -70,8 +73,7 @@ class RotaryEncoder:
                 # Compute step
                 step = (new_idx - old_idx) % 4
 
-                time_delta = time.time() - last_polling
-                last_polling = time.time()
+  
                 print(f"old={old_idx}, new={new_idx}, step={step}, tc={self.turn_count}, at={self.accumulated_ticks}, td={time_delta:.3f}")
                 if step == 1:  # Next in sequence = CW
                     self.turn_count += 1
