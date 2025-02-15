@@ -1,0 +1,16 @@
+[Unit]
+Description=Boot Display Service
+DefaultDependencies=no
+After=local-fs.target
+Before=basic.target
+Conflicts=radiowecker.service
+
+[Service]
+Type=simple
+User=%USER%
+WorkingDirectory=%HOME%/Radiowecker
+ExecStart=/usr/bin/python3 %HOME%/Radiowecker/boot_display.py
+RemainAfterExit=no
+
+[Install]
+WantedBy=sysinit.target

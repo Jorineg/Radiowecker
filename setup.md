@@ -11,7 +11,7 @@ git clone https://github.com/Jorineg/Radiowecker.git
 
 # Install required packages
 sudo apt-get install -y python3-rpi.gpio python3-luma.core python3-luma.oled
-sudo apt-get install -y vlc python3-vlc
+sudo apt-get install -y vlc python3-vlc python3-numpy
 ```
 
 ## 2. Audio Setup
@@ -46,7 +46,21 @@ sudo apt-get install -y pulseaudio
 sudo usermod -a -G audio $USER
 ```
 
-## 3. Bluetooth Setup
+## 3. I2C Setup
+
+Enable I2C and set speed to 400kHz for better display performance:
+
+```bash
+# Edit /boot/firmware/config.txt and change the i2c line to:
+dtparam=i2c_arm=on,i2c_arm_baudrate=400000
+```
+
+After changing, reboot the system:
+```bash
+sudo reboot
+```
+
+## 4. Bluetooth Setup
 
 ```bash
 # Install Bluetooth packages
@@ -120,7 +134,7 @@ If you encounter Bluetooth audio issues:
    - Verify ALSA routing: `cat /etc/asound.conf`
 ```
 
-## 4. System Configuration
+## 5. System Configuration
 
 ### Configure Interfaces
 ```bash
@@ -172,7 +186,7 @@ WantedBy=multi-user.target
 EOL
 ```
 
-## 5. Final Steps
+## 6. Final Steps
 
 ```bash
 # Enable and start all services
@@ -186,7 +200,7 @@ sudo systemctl enable bt-agent
 sudo reboot
 ```
 
-## 6. Boot Optimization
+## 7. Boot Optimization
 
 The following steps can help reduce boot time (currently ~16s on Pi Zero 2 W):
 
@@ -230,7 +244,7 @@ sudo nano /etc/fstab
 PARTUUID=... / ext4 defaults,noatime,nodiratime 0 1
 ```
 
-## 7. Enable DigiAMP+ at System Startup
+## 8. Enable DigiAMP+ at System Startup
 
 To enable the DigiAMP+ automatically at system startup:
 
@@ -259,14 +273,14 @@ You can check the status of the service with:
 sudo systemctl status radiowecker-amp.service
 ```
 
-## 8. Usage
+## 9. Usage
 
 1. The Raspberry Pi will appear on your smartphone as a Bluetooth audio device with the hostname of the Pi
 2. Connect from your smartphone
 3. Select the Pi as the audio output device
 4. You can now stream music from your smartphone to the Pi
 
-## 9. Change Hostname and Bluetooth Name
+## 10. Change Hostname and Bluetooth Name
 
 The hostname is used for network identification and can be different from the Bluetooth display name:
 

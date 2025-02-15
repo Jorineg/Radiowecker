@@ -4,7 +4,7 @@ After=multi-user.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/python3 /home/admin/Radiowecker/enable_amp.py
+ExecStart=/usr/bin/python3 %HOME%/Radiowecker/enable_amp.py
 RemainAfterExit=yes
 
 [Install]
