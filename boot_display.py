@@ -9,6 +9,16 @@ import signal
 import fcntl
 import io
 
+def write_cmd(f, cmd):
+    """Write a command byte to the display"""
+    f.write(bytes([0x00, cmd]))  # Command byte is prefixed with 0x00
+
+def write_data(f, data):
+    """Write a data byte to the display"""
+    if isinstance(data, int):
+        data = [data]
+    f.write(bytes([0x40] + list(data)))  # Data bytes are prefixed with 0x40
+
 # Quick I2C display function without heavy dependencies
 def quick_display_message():
     try:
@@ -19,46 +29,61 @@ def quick_display_message():
             fcntl.ioctl(f, 0x0703, 0x3C)
             
             # Initialize display
-            init_sequence = bytes([
-                0x00, 0xAE,  # display off
-                0x00, 0xD5, 0x00, 0x80,  # clock div
-                0x00, 0xA8, 0x00, 0x3F,  # multiplex
-                0x00, 0xD3, 0x00, 0x00,  # offset
-                0x00, 0x40,  # start line
-                0x00, 0x8D, 0x00, 0x14,  # charge pump
-                0x00, 0x20, 0x00, 0x00,  # memory mode
-                0x00, 0xA1,  # seg remap
-                0x00, 0xC8,  # com scan dec
-                0x00, 0xDA, 0x00, 0x12,  # com pins
-                0x00, 0x81, 0x00, 0xCF,  # contrast
-                0x00, 0xD9, 0x00, 0xF1,  # precharge
-                0x00, 0xDB, 0x00, 0x40,  # vcom detect
-                0x00, 0xA4,  # resume
-                0x00, 0xA6,  # normal (not inverted)
-                0x00, 0xAF,  # display on
-            ])
-            f.write(init_sequence)
-            
+            write_cmd(f, 0xAE)  # display off
+            write_cmd(f, 0xD5)  # clock div
+            write_cmd(f, 0x80)
+            write_cmd(f, 0xA8)  # multiplex
+            write_cmd(f, 0x3F)
+            write_cmd(f, 0xD3)  # offset
+            write_cmd(f, 0x00)
+            write_cmd(f, 0x40)  # start line
+            write_cmd(f, 0x8D)  # charge pump
+            write_cmd(f, 0x14)
+            write_cmd(f, 0x20)  # memory mode
+            write_cmd(f, 0x00)
+            write_cmd(f, 0xA1)  # seg remap
+            write_cmd(f, 0xC8)  # com scan dec
+            write_cmd(f, 0xDA)  # com pins
+            write_cmd(f, 0x12)
+            write_cmd(f, 0x81)  # contrast
+            write_cmd(f, 0xCF)
+            write_cmd(f, 0xD9)  # precharge
+            write_cmd(f, 0xF1)
+            write_cmd(f, 0xDB)  # vcom detect
+            write_cmd(f, 0x40)
+            write_cmd(f, 0xA4)  # resume
+            write_cmd(f, 0xA6)  # normal
+            write_cmd(f, 0xAF)  # display on
+
+            # Set address range for full screen
+            write_cmd(f, 0x21)  # column address
+            write_cmd(f, 0)     # start
+            write_cmd(f, 127)   # end
+            write_cmd(f, 0x22)  # page address
+            write_cmd(f, 0)     # start
+            write_cmd(f, 7)     # end
+
             # Write "BOOT" in large pixels
             buffer = [0] * 1024  # 128x64 pixels = 1024 bytes
+            
             # Simple "BOOT" pattern (very basic pixel art)
-            boot_pattern = [
-                0x00, 0x7E, 0x7E, 0x0C, 0x18, 0x7E, 0x7E, 0x00,  # B
-                0x00, 0x7E, 0x7E, 0x66, 0x66, 0x66, 0x66, 0x00,  # O
-                0x00, 0x7E, 0x7E, 0x66, 0x66, 0x66, 0x66, 0x00,  # O
-                0x00, 0x7E, 0x7E, 0x18, 0x18, 0x18, 0x18, 0x00,  # T
+            pattern = [
+                0x7E, 0x7E, 0x0C, 0x18, 0x7E, 0x7E,  # B
+                0x7E, 0x7E, 0x66, 0x66, 0x7E, 0x7E,  # O
+                0x7E, 0x7E, 0x66, 0x66, 0x7E, 0x7E,  # O
+                0x7E, 0x7E, 0x18, 0x18, 0x18, 0x18   # T
             ]
             
-            # Position in middle of screen
-            pos = 256 + 32  # Middle row, slightly left of center
-            for b in boot_pattern:
-                buffer[pos] = b
-                pos += 1
+            # Position in middle of screen (page 3-4, columns 40-70)
+            for page in range(2):
+                pos = 40 + (page + 3) * 128
+                for i, b in enumerate(pattern):
+                    buffer[pos + i] = b
             
-            # Write to display
-            for i in range(0, len(buffer), 16):
-                chunk = bytes([0x40] + list(buffer[i:i+16]))
-                f.write(chunk)
+            # Write buffer in chunks
+            for i in range(0, len(buffer), 32):
+                chunk = buffer[i:i+32]
+                write_data(f, chunk)
                 
         print(f"[{time.time() - start_time:.3f}s] Quick display message shown")
         return True
