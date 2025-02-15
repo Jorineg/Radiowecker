@@ -1,9 +1,10 @@
 [Unit]
 Description=Boot Display Service
 DefaultDependencies=no
-After=local-fs.target
-Before=basic.target
-Conflicts=radiowecker.service
+Conflicts=shutdown.target
+After=local-fs.target dev-i2c-1.device
+Before=sysinit.target
+Requires=dev-i2c-1.device
 
 [Service]
 Type=simple
