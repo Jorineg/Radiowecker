@@ -1,0 +1,23 @@
+# Optimized config.txt for fast boot
+
+# Disable unnecessary hardware
+hdmi_blanking=1
+hdmi_enable_4kp60=0
+disable_overscan=1
+
+# Minimal GPU memory
+gpu_mem=16
+
+# Faster boot clock
+init_uart_clock=48000000
+
+# Minimal boot delay
+boot_delay=0
+
+# Enable I2C (needed for our display)
+dtparam=i2c_arm=on
+dtparam=i2c=on
+
+# Force turbo mode during boot
+force_turbo=1
+boot_delay_ms=0
