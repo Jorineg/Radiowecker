@@ -12,9 +12,17 @@ check_service_files() {
     return 1  # No service files were changed
 }
 
+# Function to get list of changed service files
+get_changed_services() {
+    git diff-tree -r --name-only --no-commit-id ORIG_HEAD HEAD | grep "^services/.*\.service$" | sed 's/^services\///'
+}
+
 # Function to update services
 update_services() {
     echo "Service files changed, updating systemd services..."
+    
+    # Get list of changed services
+    changed_services=$(get_changed_services)
     
     # Copy all service files
     for service_file in services/*.service; do
@@ -27,8 +35,16 @@ update_services() {
     done
     
     # Reload systemd to recognize changes
+    echo "Reloading systemd..."
     sudo systemctl daemon-reload
-    echo "Services updated and systemd reloaded"
+    
+    # Restart changed services
+    for service in $changed_services; do
+        echo "Restarting $service..."
+        sudo systemctl restart "$service"
+    done
+    
+    echo "Services updated, reloaded, and restarted"
 }
 
 # Main script
