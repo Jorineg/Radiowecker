@@ -1,9 +1,18 @@
 #!/usr/bin/env python3
 
-from display import OLEDDisplay
-import sys
-import signal
 import time
+start_time = time.time()
+print(f"[{time.time() - start_time:.3f}s] Starting imports...")
+
+import sys
+print(f"[{time.time() - start_time:.3f}s] Imported sys")
+
+import signal
+print(f"[{time.time() - start_time:.3f}s] Imported signal")
+
+print(f"[{time.time() - start_time:.3f}s] Importing display...")
+from display import OLEDDisplay
+print(f"[{time.time() - start_time:.3f}s] Display module imported")
 
 def signal_handler(signum, frame):
     # Clear display on termination
@@ -16,20 +25,25 @@ def signal_handler(signum, frame):
 
 def show_boot():
     try:
+        print(f"[{time.time() - start_time:.3f}s] Starting display init...")
         global display
         # Initialize display with retries
-        for _ in range(20):  # try for 2 seconds
+        for i in range(20):  # try for 2 seconds
             try:
                 display = OLEDDisplay(128, 64)
+                print(f"[{time.time() - start_time:.3f}s] Display initialized after {i+1} tries")
                 break
             except Exception as e:
+                print(f"[{time.time() - start_time:.3f}s] Init attempt {i+1} failed: {e}")
                 time.sleep(0.1)
         else:
             print("Could not initialize display", file=sys.stderr)
             sys.exit(1)
         
+        print(f"[{time.time() - start_time:.3f}s] Setting up signal handler...")
         # Register signal handler for cleanup
         signal.signal(signal.SIGTERM, signal_handler)
+        print(f"[{time.time() - start_time:.3f}s] Starting main loop...")
         
         while True:
             display.clear()
@@ -50,8 +64,9 @@ def show_boot():
             time.sleep(0.1)  # Small sleep to prevent CPU hogging
             
     except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
+        print(f"[{time.time() - start_time:.3f}s] Error: {e}", file=sys.stderr)
         sys.exit(1)
 
 if __name__ == "__main__":
+    print(f"[{time.time() - start_time:.3f}s] Starting main...")
     show_boot()

@@ -11,6 +11,8 @@ User=root
 Environment=PYTHONPATH=/home/admin/Radiowecker
 WorkingDirectory=/home/admin/Radiowecker
 ExecStart=/usr/bin/python3 /home/admin/Radiowecker/boot_display.py
+StandardOutput=journal
+StandardError=journal
 RemainAfterExit=no
 
 [Install]
