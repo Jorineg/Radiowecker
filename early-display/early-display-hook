@@ -17,13 +17,24 @@ esac
 
 . /usr/share/initramfs-tools/hook-functions
 
+# Debug output
+echo "Running early-display hook script..." >&2
+
 # Copy our binary
-copy_exec /usr/local/bin/early_display /bin/early_display
+if [ -x /usr/local/bin/early_display ]; then
+    echo "Copying early_display binary..." >&2
+    copy_exec /usr/local/bin/early_display /bin/early_display
+else
+    echo "ERROR: /usr/local/bin/early_display not found or not executable" >&2
+    exit 1
+fi
 
 # Copy I2C modules and dependencies
 manual_add_modules i2c-dev
 manual_add_modules i2c-bcm2835
 
-# Copy device node
-mkdir -p ${DESTDIR}/dev/i2c-1
-mknod ${DESTDIR}/dev/i2c-1 c 89 1
+# Create I2C device node if it doesn't exist
+if [ ! -e "${DESTDIR}/dev/i2c-1" ]; then
+    mkdir -p "${DESTDIR}/dev"
+    mknod "${DESTDIR}/dev/i2c-1" c 89 1
+fi
