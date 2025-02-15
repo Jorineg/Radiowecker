@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# Function to check if any service files were changed
+check_service_files() {
+    # Get the list of changed files
+    changed_files=$(git diff-tree -r --name-only --no-commit-id ORIG_HEAD HEAD)
+    
+    # Check if any .service files in the services directory were changed
+    if echo "$changed_files" | grep -q "^services/.*\.service$"; then
+        return 0  # Service files were changed
+    fi
+    return 1  # No service files were changed
+}
+
+# Function to update services
+update_services() {
+    echo "Service files changed, updating systemd services..."
+    
+    # Copy all service files
+    for service_file in services/*.service; do
+        if [ -f "$service_file" ]; then
+            basename=$(basename "$service_file")
+            echo "Updating $basename..."
+            # Replace placeholders and copy to systemd
+            sed "s/%USER%/$USER/g; s|%HOME%|$HOME|g" "$service_file" | sudo tee "/etc/systemd/system/$basename" > /dev/null
+        fi
+    done
+    
+    # Reload systemd to recognize changes
+    sudo systemctl daemon-reload
+    echo "Services updated and systemd reloaded"
+}
+
+# Main script
+if check_service_files; then
+    update_services
+fi
