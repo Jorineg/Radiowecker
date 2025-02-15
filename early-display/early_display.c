@@ -70,8 +70,8 @@ int main() {
         0x40,  // start line
         0x8D, 0x14,  // charge pump
         0x20, 0x00,  // memory mode
-        0xA1,  // seg remap
-        0xC8,  // com scan dec
+        0xA1,  // seg remap - flip horizontal (0xA1 = flipped, 0xA0 = normal)
+        0xC8,  // com scan dec - flip vertical (0xC8 = flipped, 0xC0 = normal)
         0xDA, 0x12,  // com pins
         0x81, 0xCF,  // contrast
         0xD9, 0xF1,  // precharge
