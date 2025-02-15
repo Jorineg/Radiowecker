@@ -61,7 +61,7 @@ int main() {
         return 1;
     }
     
-    // Initialize display
+    // Initialize display - exactly matching display.py
     const uint8_t init_commands[] = {
         0xAE,  // display off
         0xD5, 0x80,  // clock div
@@ -70,14 +70,14 @@ int main() {
         0x40,  // start line
         0x8D, 0x14,  // charge pump
         0x20, 0x00,  // memory mode
-        0xA1,  // seg remap - flip horizontal (0xA1 = flipped, 0xA0 = normal)
-        0xC8,  // com scan dec - flip vertical (0xC8 = flipped, 0xC0 = normal)
+        0xA0,  // seg remap - normal mode (0x00)
+        0xC0,  // com scan dir - normal mode (0x00)
         0xDA, 0x12,  // com pins
         0x81, 0xCF,  // contrast
         0xD9, 0xF1,  // precharge
         0xDB, 0x40,  // vcom detect
-        0xA4,  // resume
-        0xA6,  // normal
+        0xA4,  // output follows RAM
+        0xA6,  // not inverted
         0xAF   // display on
     };
     
