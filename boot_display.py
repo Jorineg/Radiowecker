@@ -17,8 +17,16 @@ def signal_handler(signum, frame):
 def show_boot():
     try:
         global display
-        # Initialize display (128x64 is standard for SSD1306)
-        display = OLEDDisplay(128, 64)
+        # Initialize display with retries
+        for _ in range(20):  # try for 2 seconds
+            try:
+                display = OLEDDisplay(128, 64)
+                break
+            except Exception as e:
+                time.sleep(0.1)
+        else:
+            print("Could not initialize display", file=sys.stderr)
+            sys.exit(1)
         
         # Register signal handler for cleanup
         signal.signal(signal.SIGTERM, signal_handler)
@@ -46,4 +54,7 @@ def show_boot():
         sys.exit(1)
 
 if __name__ == "__main__":
+    if sys.geteuid() != 0:
+        print("Please run with root privileges", file=sys.stderr)
+        sys.exit(1)
     show_boot()

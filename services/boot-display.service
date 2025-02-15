@@ -1,18 +1,20 @@
 [Unit]
 Description=Boot Display Service
 DefaultDependencies=no
-After=systemd-udevd.service
-Before=basic.target
+Requires=dev-i2c-1.device
+After=dev-i2c-1.device systemd-udev-settle.service
+Before=sysinit.target
 Conflicts=shutdown.target
+ConditionPathExists=/dev/i2c-1
 
 [Service]
 Type=simple
-User=%USER%
-WorkingDirectory=%HOME%/Radiowecker
-ExecStartPre=/bin/sleep 1
-ExecStart=/usr/bin/python3 %HOME%/Radiowecker/boot_display.py
+User=root
+Environment=PYTHONPATH=/home/admin/Radiowecker
+WorkingDirectory=/home/admin/Radiowecker
+ExecStart=/usr/bin/python3 /home/admin/Radiowecker/boot_display.py
 RemainAfterExit=no
 
 [Install]
-WantedBy=basic.target
-
+WantedBy=sysinit.target
+Also=dev-i2c-1.device
