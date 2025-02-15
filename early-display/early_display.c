@@ -1,10 +1,12 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <linux/i2c-dev.h>
 #include <sys/ioctl.h>
 #include <string.h>
+#include "display_commands.h"
 
 // Structure for command sequences
 struct i2c_command {
@@ -97,10 +99,8 @@ int main() {
     write_cmd(fd, 0);     // start
     write_cmd(fd, 7);     // end
     
-    // Write the welcome screen buffer (will be included from display_commands.h)
-    extern const uint8_t welcome_screen_buffer[];
-    extern const size_t welcome_screen_buffer_size;
-    if (write_data(fd, welcome_screen_buffer, welcome_screen_buffer_size) < 0) {
+    // Write the welcome screen buffer
+    if (write_data(fd, welcome_screen_buffer, sizeof(welcome_screen_buffer)) < 0) {
         fprintf(stderr, "Failed to write welcome screen\n");
         close(fd);
         return 1;
