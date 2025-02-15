@@ -1,11 +1,9 @@
 [Unit]
 Description=Boot Display Service
 DefaultDependencies=no
-Requires=dev-i2c-1.device
-After=dev-i2c-1.device systemd-udev-settle.service
+After=systemd-remount-fs.service
 Before=sysinit.target
 Conflicts=shutdown.target
-ConditionPathExists=/dev/i2c-1
 
 [Service]
 Type=simple
@@ -17,4 +15,3 @@ RemainAfterExit=no
 
 [Install]
 WantedBy=sysinit.target
-Also=dev-i2c-1.device
