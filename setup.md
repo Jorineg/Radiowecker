@@ -230,14 +230,43 @@ sudo nano /etc/fstab
 PARTUUID=... / ext4 defaults,noatime,nodiratime 0 1
 ```
 
-## 7. Usage
+## 7. Enable DigiAMP+ at System Startup
+
+To enable the DigiAMP+ automatically at system startup:
+
+1. Copy the service file to systemd:
+```bash
+sudo cp radiowecker-amp.service /etc/systemd/system/
+```
+
+2. Reload systemd to recognize the new service:
+```bash
+sudo systemctl daemon-reload
+```
+
+3. Enable the service to start at boot:
+```bash
+sudo systemctl enable radiowecker-amp.service
+```
+
+4. Start the service immediately:
+```bash
+sudo systemctl start radiowecker-amp.service
+```
+
+You can check the status of the service with:
+```bash
+sudo systemctl status radiowecker-amp.service
+```
+
+## 8. Usage
 
 1. The Raspberry Pi will appear on your smartphone as a Bluetooth audio device with the hostname of the Pi
 2. Connect from your smartphone
 3. Select the Pi as the audio output device
 4. You can now stream music from your smartphone to the Pi
 
-## 8. Change Hostname and Bluetooth Name
+## 9. Change Hostname and Bluetooth Name
 
 The hostname is used for network identification and can be different from the Bluetooth display name:
 

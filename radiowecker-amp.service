@@ -1,0 +1,11 @@
+[Unit]
+Description=Enable DigiAMP+ on startup
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /home/pi/Radiowecker/enable_amp.py
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
