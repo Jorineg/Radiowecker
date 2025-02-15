@@ -14,5 +14,20 @@ case $1 in
         ;;
 esac
 
+# Debug logging
+echo "[early-display] Starting early display initialization..." > /dev/kmsg
+modprobe i2c-dev >> /dev/kmsg 2>&1
+modprobe i2c-bcm2835 >> /dev/kmsg 2>&1
+echo "[early-display] I2C modules loaded" > /dev/kmsg
+
+# Wait a moment for I2C to initialize
+sleep 1
+
 # Run our early display program
-/bin/early_display
+if [ -x /bin/early_display ]; then
+    echo "[early-display] Running display program..." > /dev/kmsg
+    /bin/early_display >> /dev/kmsg 2>&1
+    echo "[early-display] Display program finished with status $?" > /dev/kmsg
+else
+    echo "[early-display] ERROR: /bin/early_display not found or not executable" > /dev/kmsg
+fi

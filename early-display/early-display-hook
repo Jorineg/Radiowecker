@@ -20,10 +20,10 @@ esac
 # Copy our binary
 copy_exec /usr/local/bin/early_display /bin/early_display
 
-# Ensure we have I2C modules
-manual_add_modules i2c_dev
-manual_add_modules i2c_bcm2835
+# Copy I2C modules and dependencies
+manual_add_modules i2c-dev
+manual_add_modules i2c-bcm2835
 
-# Copy any additional required libraries
-copy_exec /lib/arm-linux-gnueabihf/libc.so.6
-copy_exec /lib/arm-linux-gnueabihf/ld-linux-armhf.so.3
+# Copy device node
+mkdir -p ${DESTDIR}/dev/i2c-1
+mknod ${DESTDIR}/dev/i2c-1 c 89 1
