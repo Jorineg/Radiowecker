@@ -207,6 +207,22 @@ int init_gpio(void) {
 #define init_gpio() 0
 #endif
 
+// Function to chain-load the next kernel
+static void load_next_kernel(void)
+{
+    // Function pointer type for the kernel entry
+    typedef void (*kernel_entry)(uint32_t r0, uint32_t r1, uint32_t r2);
+    
+    // The next kernel is loaded at 0x80000 (default load address)
+    kernel_entry next = (kernel_entry)0x80000;
+    
+    // Call the next kernel with standard parameters
+    // r0 = 0 (hardware type)
+    // r1 = 0xC42 (Raspberry Pi machine type)
+    // r2 = 0 (ATAGS/DTB pointer, we're not passing any)
+    next(0, 0xC42, 0);
+}
+
 //---------------------------------------------------------------------
 // main() – this is our boot-entry code.
 // It sets up the two GPIO pins, sends the SSD1306’s initialization
@@ -271,6 +287,10 @@ int main(void)
     #ifdef LINUX_BUILD
         // Cleanup for Linux version
         munmap(gpio_map, 4*1024);
+        return 0;
+    #else
+        // In bare metal mode, chain-load the next kernel
+        load_next_kernel();
     #endif
 
     return 0;

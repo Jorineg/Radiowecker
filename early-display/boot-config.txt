@@ -1,5 +1,12 @@
 # Optimized config.txt for fast boot
 
+# Bare metal boot settings for early display init
+kernel_old=1
+disable_commandline_tags=1
+kernel=kernel7l.img        # Our early init code (32-bit)
+os_prefix=orig/           # Directory for original kernel
+arm_64bit=0              # Force 32-bit mode for our early init
+
 # Boot optimizations
 boot_delay=0
 boot_delay_ms=0
@@ -19,7 +26,12 @@ hdmi_blanking=1
 hdmi_enable_4kp60=0
 max_framebuffers=2
 
-# Required I2C for display
+# I2C settings for our early init
+dtparam=i2c_arm=off   # We're bit-banging, so disable hardware I2C
+gpio=2,3=op           # Set GPIO 2,3 as outputs at boot
+
+# Original I2C settings (will be used after chain-loading)
+[orig/]
 dtparam=i2c_arm=on
 dtparam=i2c=on
 
