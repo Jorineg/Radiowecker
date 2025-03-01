@@ -40,15 +40,14 @@ class AudioSource(Enum):
 
 
 class AudioFile:
-    def __init__(self, path: str, is_dir: bool = False, name: str = None):
+    def __init__(self, path: str, is_dir: bool = False, name: str = None, is_special: bool = False):
         self.path = path
-        self.is_special = False
+        self.is_dir = is_dir
+        self.is_special = is_special
         if name:
-            self.is_special = True
             self.name = name
         else:
             self.name = os.path.basename(path)
-        self.is_dir = is_dir
 
 
 class AudioStation:
@@ -171,128 +170,168 @@ class AudioManager:
                 AudioStation("Radio Example 2", "http://example.com/stream2"),
             ]
 
-    def scan_directory(self, path: str = None):
-        """Scan directory for audio files"""
-        if path:
-            self.current_dir = path
-
-        self.files.clear()
-
-        # Add parent directory if not in root
-        if self.current_dir != "/":
-            parent = str(Path(self.current_dir).parent)
-            self.files.append(AudioFile(parent, is_dir=True, name=BACK))
-
+    def scan_directory(self, directory=None):
+        """Scan directory for audio files and subdirectories"""
         try:
-            # Add directories first
-            for item in sorted(os.listdir(self.current_dir)):
-                full_path = os.path.join(self.current_dir, item)
-                if os.path.isdir(full_path):
-                    self.files.append(AudioFile(full_path, is_dir=True))
+            if directory is None:
+                directory = self.current_dir
+            else:
+                self.current_dir = directory
 
-            # Then add audio files
-            has_audio_files = False
-            for item in sorted(os.listdir(self.current_dir)):
-                full_path = os.path.join(self.current_dir, item)
-                if os.path.isfile(full_path):
-                    ext = os.path.splitext(item)[1].lower()
-                    if ext in [".mp3", ".wav", ".ogg", ".m4a"]:
-                        self.files.append(AudioFile(full_path))
-                        has_audio_files = True
+            self.files = []
             
-            # Always add THIS_DIR option regardless of whether there are audio files directly in this directory
-            # We'll check for audio files recursively when playing
-            self.files.append(AudioFile(self.current_dir, is_dir=True, name=THIS_DIR))
+            # Check if directory exists
+            if not os.path.exists(directory):
+                print(f"Directory does not exist: {directory}")
+                # Add a special "error" entry
+                self.files.append(AudioFile(name="Directory not found", path=directory, is_dir=False, is_special=True))
+                return
                 
-        except PermissionError:
-            print(f"Permission denied: {self.current_dir}")
-            self.files.append(AudioFile("/", is_dir=True, name="Permission denied"))
-        except FileNotFoundError:
-            print(f"Directory not found: {self.current_dir}")
-            self.files.append(AudioFile("/", is_dir=True, name="Directory not found"))
+            try:
+                entries = os.listdir(directory)
+            except PermissionError:
+                print(f"Permission denied: {directory}")
+                # Add a special "error" entry
+                self.files.append(AudioFile(name="Permission denied", path=directory, is_dir=False, is_special=True))
+                return
+            except Exception as e:
+                print(f"Error listing directory {directory}: {e}")
+                # Add a special "error" entry
+                self.files.append(AudioFile(name=f"Error: {str(e)}", path=directory, is_dir=False, is_special=True))
+                return
+
+            # Add "this directory" option - always include it regardless of content
+            # It will recursively scan for audio files when selected
+            self.files.append(AudioFile(name=THIS_DIR, path=directory, is_dir=False, is_special=True))
+
+            # Add back option if not in root directory
+            if directory != "/":
+                self.files.append(AudioFile(name=BACK, path=directory, is_dir=False, is_special=True))
+
+            # Add directories
+            for entry in sorted(entries):
+                path = os.path.join(directory, entry)
+                if os.path.isdir(path) and not entry.startswith('.'):
+                    self.files.append(AudioFile(name=entry, path=path, is_dir=True))
+
+            # Add audio files
+            for entry in sorted(entries):
+                path = os.path.join(directory, entry)
+                if os.path.isfile(path) and self._is_audio_file(entry):
+                    self.files.append(AudioFile(name=entry, path=path))
+                                         
+            # If no files or directories were found (empty directory)
+            if len(self.files) == 0:
+                self.files.append(AudioFile(name="Empty directory", path=directory, is_dir=False, is_special=True))
+                
         except Exception as e:
-            print(f"Error scanning directory: {e}")
-            self.files.append(AudioFile("/", is_dir=True, name=f"Error: {str(e)}"))
-            
-        # If we somehow ended up with an empty list, add a dummy entry
-        if not self.files:
-            print("Warning: Empty files list after scanning, adding dummy entry")
-            self.files.append(AudioFile("/", is_dir=True, name="Empty directory"))
+            print(f"Error scanning directory {directory}: {e}")
+            # Clear any partial results
+            self.files = []
+            # Add a special "error" entry
+            self.files.append(AudioFile(name=f"Error: {str(e)}", path=directory, is_dir=False, is_special=True))
 
-    def scan_sd_card_directory(self, path: str = None):
-        """Scan SD card directory for audio files"""
-        if path:
-            self.sd_card_dir = path
-
-        self.sd_card_files.clear()
-        
-        # Check if SD card is mounted
-        if not os.path.exists(self.sd_card_mount_point):
-            self.sd_card_files.append(AudioFile("/", is_dir=True, name="SD Card mount point not found"))
-            return
-        
-        if not os.path.ismount(self.sd_card_mount_point):
-            self.sd_card_files.append(AudioFile("/", is_dir=True, name="SD Card not mounted"))
-            return
-
-        # Add parent directory if not in root
-        if self.sd_card_dir != self.sd_card_mount_point:
-            parent = str(Path(self.sd_card_dir).parent)
-            self.sd_card_files.append(AudioFile(parent, is_dir=True, name=BACK))
-
+    def scan_sd_card_directory(self, directory=None):
+        """Scan SD card directory for audio files and subdirectories"""
         try:
-            # Add directories first
-            for item in sorted(os.listdir(self.sd_card_dir)):
-                full_path = os.path.join(self.sd_card_dir, item)
-                if os.path.isdir(full_path):
-                    self.sd_card_files.append(AudioFile(full_path, is_dir=True))
+            if directory is None:
+                directory = self.sd_card_dir
+            else:
+                self.sd_card_dir = directory
 
-            # Then add audio files
-            has_audio_files = False
-            for item in sorted(os.listdir(self.sd_card_dir)):
-                full_path = os.path.join(self.sd_card_dir, item)
-                if os.path.isfile(full_path):
-                    ext = os.path.splitext(item)[1].lower()
-                    if ext in [".mp3", ".wav", ".ogg", ".m4a"]:
-                        self.sd_card_files.append(AudioFile(full_path))
-                        has_audio_files = True
+            self.sd_card_files = []
             
-            # Always add THIS_DIR option regardless of whether there are audio files directly in this directory
-            # We'll check for audio files recursively when playing
-            self.sd_card_files.append(AudioFile(self.sd_card_dir, is_dir=True, name=THIS_DIR))
-            
-        except PermissionError:
-            print(f"Permission denied: {self.sd_card_dir}")
-            self.sd_card_files.append(AudioFile("/", is_dir=True, name="Permission denied"))
-        except FileNotFoundError:
-            print(f"SD card directory not found: {self.sd_card_dir}")
-            self.sd_card_files.append(AudioFile("/", is_dir=True, name="Directory not found"))
+            # Check if directory exists and is mounted
+            if not os.path.exists(directory):
+                print(f"SD card directory does not exist: {directory}")
+                # Add a special "error" entry
+                self.sd_card_files.append(AudioFile(name="SD card not mounted", path=directory, is_dir=False, is_special=True))
+                return
+                
+            try:
+                entries = os.listdir(directory)
+            except PermissionError:
+                print(f"Permission denied: {directory}")
+                # Add a special "error" entry
+                self.sd_card_files.append(AudioFile(name="Permission denied", path=directory, is_dir=False, is_special=True))
+                return
+            except Exception as e:
+                print(f"Error listing SD card directory {directory}: {e}")
+                # Add a special "error" entry
+                self.sd_card_files.append(AudioFile(name=f"Error: {str(e)}", path=directory, is_dir=False, is_special=True))
+                return
+
+            # Add "this directory" option - always include it regardless of content
+            # It will recursively scan for audio files when selected
+            self.sd_card_files.append(AudioFile(name=THIS_DIR, path=directory, is_dir=False, is_special=True))
+
+            # Add back option if not in root directory
+            if directory != self.sd_card_mount_point:
+                self.sd_card_files.append(AudioFile(name=BACK, path=directory, is_dir=False, is_special=True))
+
+            # Add directories
+            for entry in sorted(entries):
+                path = os.path.join(directory, entry)
+                if os.path.isdir(path) and not entry.startswith('.'):
+                    self.sd_card_files.append(AudioFile(name=entry, path=path, is_dir=True))
+
+            # Add audio files
+            for entry in sorted(entries):
+                path = os.path.join(directory, entry)
+                if os.path.isfile(path) and self._is_audio_file(entry):
+                    self.sd_card_files.append(AudioFile(name=entry, path=path))
+                                         
+            # If no files or directories were found (empty directory)
+            if len(self.sd_card_files) == 0:
+                self.sd_card_files.append(AudioFile(name="Empty directory", path=directory, is_dir=False, is_special=True))
+                
         except Exception as e:
-            print(f"Error scanning SD card directory: {e}")
-            self.sd_card_files.append(AudioFile("/", is_dir=True, name=f"Error: {str(e)}"))
-            
-        # If we somehow ended up with an empty list, add a dummy entry
-        if not self.sd_card_files:
-            print("Warning: Empty SD card files list after scanning, adding dummy entry")
-            self.sd_card_files.append(AudioFile("/", is_dir=True, name="Empty directory"))
+            print(f"Error scanning SD card directory {directory}: {e}")
+            # Clear any partial results
+            self.sd_card_files = []
+            # Add a special "error" entry
+            self.sd_card_files.append(AudioFile(name=f"Error: {str(e)}", path=directory, is_dir=False, is_special=True))
 
     def _find_audio_files_recursively(self, directory, max_files=100):
         """Find all audio files recursively in a directory and its subdirectories"""
         audio_files = []
         
+        if not os.path.exists(directory) or not os.path.isdir(directory):
+            print(f"Error: Directory does not exist or is not a directory: {directory}")
+            return audio_files
+            
         try:
+            # Use os.walk for efficient recursive directory traversal
             for root, dirs, files in os.walk(directory):
+                # Skip hidden directories
+                dirs[:] = [d for d in dirs if not d.startswith('.')]
+                
+                # Process files in current directory
                 for file in files:
+                    # Skip hidden files
+                    if file.startswith('.'):
+                        continue
+                        
+                    # Check if we've reached the maximum number of files
                     if len(audio_files) >= max_files:
+                        print(f"Reached maximum of {max_files} files, stopping recursive scan")
                         return audio_files
                         
-                    ext = os.path.splitext(file)[1].lower()
-                    if ext in [".mp3", ".wav", ".ogg", ".m4a"]:
+                    # Check if it's an audio file
+                    if self._is_audio_file(file):
                         full_path = os.path.join(root, file)
                         audio_files.append(AudioFile(full_path))
+                        
+                    # Print progress every 10 files
+                    if len(audio_files) % 10 == 0 and len(audio_files) > 0:
+                        print(f"Found {len(audio_files)} audio files so far...")
+                        
+        except PermissionError:
+            print(f"Permission denied while scanning directory: {directory}")
         except Exception as e:
             print(f"Error finding audio files recursively: {e}")
             
+        print(f"Found {len(audio_files)} audio files in total")
         return audio_files
 
     def _create_playlist_from_file(self, start_file: AudioFile):
@@ -305,6 +344,7 @@ class AudioManager:
         
         # If THIS_DIR is selected, create a playlist of all files in the directory and subdirectories
         if start_file.is_special and start_file.name == THIS_DIR:
+            print(f"Creating recursive playlist from directory: {self.current_dir}")
             # Find all audio files recursively
             all_files = self._find_audio_files_recursively(self.current_dir, max_files=100)
             
@@ -316,6 +356,8 @@ class AudioManager:
                 # Take the first 20 files (or fewer if less than 20 were found)
                 playlist_files = all_files[:20]
                 
+                print(f"Adding {len(playlist_files)} files to playlist from recursive scan")
+                
                 # Add all files to media list
                 self.media_list.lock()
                 for file in playlist_files:
@@ -323,12 +365,18 @@ class AudioManager:
                     self.media_list.add_media(media)
                 
                 self.media_list.unlock()
+                
+                # Set source to USB
+                self.source = AudioSource.USB
+                
                 return True
             else:
+                print("No files found in recursive scan, falling back to regular directory playback")
                 # Fallback to regular directory playback if no files found recursively
                 playable_files = [f for f in self.files if not f.is_dir and not f.is_special]
                 
                 if playable_files:
+                    print(f"Adding {len(playable_files)} files to playlist from current directory")
                     # Add all files to media list
                     self.media_list.lock()
                     for file in playable_files:
@@ -336,14 +384,20 @@ class AudioManager:
                         self.media_list.add_media(media)
                     
                     self.media_list.unlock()
+                    
+                    # Set source to USB
+                    self.source = AudioSource.USB
+                    
                     return True
                 else:
+                    print("No playable files found in current directory")
                     return False
                 
         # Find all playable files (not directories or special files)
         playable_files = [f for f in self.files if not f.is_dir and not f.is_special]
 
         if not playable_files:
+            print("No playable files found")
             return False
 
         # If start_file is a directory, start from first file in that directory
@@ -354,6 +408,7 @@ class AudioManager:
             playable_files = [f for f in self.files if not f.is_dir and not f.is_special]
             if not playable_files:
                 self.scan_directory(old_dir)
+                print(f"No playable files found in directory: {start_file.path}")
                 return False
             start_file = playable_files[0]
 
@@ -366,6 +421,8 @@ class AudioManager:
         # Create the playlist starting from start_file
         playlist_order = playable_files[start_idx:] + playable_files[:start_idx]
 
+        print(f"Adding {len(playlist_order)} files to playlist from current directory")
+        
         # Add files to media list
         self.media_list.lock()
         for file in playlist_order:
@@ -373,6 +430,10 @@ class AudioManager:
             self.media_list.add_media(media)
 
         self.media_list.unlock()
+        
+        # Set source to USB
+        self.source = AudioSource.USB
+        
         return True
 
     def _create_sd_card_playlist_from_file(self, start_file: AudioFile):
@@ -385,6 +446,7 @@ class AudioManager:
 
         # If THIS_DIR is selected, create a playlist of all files in the directory and subdirectories
         if start_file.is_special and start_file.name == THIS_DIR:
+            print(f"Creating recursive playlist from SD card directory: {self.sd_card_dir}")
             # Find all audio files recursively
             all_files = self._find_audio_files_recursively(self.sd_card_dir, max_files=100)
             
@@ -396,6 +458,8 @@ class AudioManager:
                 # Take the first 20 files (or fewer if less than 20 were found)
                 playlist_files = all_files[:20]
                 
+                print(f"Adding {len(playlist_files)} files to playlist from recursive SD card scan")
+                
                 # Add all files to media list
                 self.media_list.lock()
                 for file in playlist_files:
@@ -403,12 +467,18 @@ class AudioManager:
                     self.media_list.add_media(media)
                 
                 self.media_list.unlock()
+                
+                # Set source to SD_CARD
+                self.source = AudioSource.SD_CARD
+                
                 return True
             else:
+                print("No files found in recursive SD card scan, falling back to regular directory playback")
                 # Fallback to regular directory playback if no files found recursively
                 playable_files = [f for f in self.sd_card_files if not f.is_dir and not f.is_special]
                 
                 if playable_files:
+                    print(f"Adding {len(playable_files)} files to playlist from current SD card directory")
                     # Add all files to media list
                     self.media_list.lock()
                     for file in playable_files:
@@ -416,24 +486,31 @@ class AudioManager:
                         self.media_list.add_media(media)
                     
                     self.media_list.unlock()
+                    
+                    # Set source to SD_CARD
+                    self.source = AudioSource.SD_CARD
+                    
                     return True
                 else:
+                    print("No playable files found in current SD card directory")
                     return False
-        
+                
         # Find all playable files (not directories or special files)
         playable_files = [f for f in self.sd_card_files if not f.is_dir and not f.is_special]
 
         if not playable_files:
+            print("No playable SD card files found")
             return False
 
         # If start_file is a directory, start from first file in that directory
-        if start_file.is_dir and not start_file.is_special:
+        if start_file.is_dir:
             # Scan the directory
             old_dir = self.sd_card_dir
             self.scan_sd_card_directory(start_file.path)
             playable_files = [f for f in self.sd_card_files if not f.is_dir and not f.is_special]
             if not playable_files:
                 self.scan_sd_card_directory(old_dir)
+                print(f"No playable files found in SD card directory: {start_file.path}")
                 return False
             start_file = playable_files[0]
 
@@ -446,6 +523,8 @@ class AudioManager:
         # Create the playlist starting from start_file
         playlist_order = playable_files[start_idx:] + playable_files[:start_idx]
 
+        print(f"Adding {len(playlist_order)} files to playlist from current SD card directory")
+        
         # Add files to media list
         self.media_list.lock()
         for file in playlist_order:
@@ -453,6 +532,10 @@ class AudioManager:
             self.media_list.add_media(media)
 
         self.media_list.unlock()
+        
+        # Set source to SD_CARD
+        self.source = AudioSource.SD_CARD
+        
         return True
 
     def process_commands(self):
@@ -668,12 +751,44 @@ class AudioManager:
             
         try:
             if audio_file.is_dir and not audio_file.is_special:
+                # Store the current directory before changing it
+                old_dir = self.current_dir
+                
+                # Scan the new directory
                 self.scan_directory(audio_file.path)
+                
+                # Update current_file to the first file in the new directory
+                if len(self.files) > 0:
+                    self.current_file = self.files[0]
+                else:
+                    # If directory is empty, keep current_file as None
+                    self.current_file = None
+                
                 return True
             elif audio_file.is_special and audio_file.name == BACK:
-                # go to parent directory
+                # Go to parent directory
                 parent = str(Path(self.current_dir).parent)
+                
+                # Store the current directory before changing it
+                old_dir = self.current_dir
+                
+                # Scan the parent directory
                 self.scan_directory(parent)
+                
+                # Update current_file to the first file in the parent directory
+                if len(self.files) > 0:
+                    # Try to find the directory we just came from
+                    for i, file in enumerate(self.files):
+                        if file.is_dir and file.path == old_dir:
+                            self.current_file = file
+                            break
+                    else:
+                        # If not found, use the first file
+                        self.current_file = self.files[0]
+                else:
+                    # If directory is empty, keep current_file as None
+                    self.current_file = None
+                
                 return True
             elif audio_file.is_special and audio_file.name == THIS_DIR:
                 # Play all files in current directory
@@ -694,12 +809,44 @@ class AudioManager:
             
         try:
             if audio_file.is_dir and not audio_file.is_special:
+                # Store the current directory before changing it
+                old_dir = self.sd_card_dir
+                
+                # Scan the new directory
                 self.scan_sd_card_directory(audio_file.path)
+                
+                # Update current_sd_file to the first file in the new directory
+                if len(self.sd_card_files) > 0:
+                    self.current_sd_file = self.sd_card_files[0]
+                else:
+                    # If directory is empty, keep current_sd_file as None
+                    self.current_sd_file = None
+                
                 return True
             elif audio_file.is_special and audio_file.name == BACK:
-                # go to parent directory
+                # Go to parent directory
                 parent = str(Path(self.sd_card_dir).parent)
+                
+                # Store the current directory before changing it
+                old_dir = self.sd_card_dir
+                
+                # Scan the parent directory
                 self.scan_sd_card_directory(parent)
+                
+                # Update current_sd_file to the first file in the parent directory
+                if len(self.sd_card_files) > 0:
+                    # Try to find the directory we just came from
+                    for i, file in enumerate(self.sd_card_files):
+                        if file.is_dir and file.path == old_dir:
+                            self.current_sd_file = file
+                            break
+                    else:
+                        # If not found, use the first file
+                        self.current_sd_file = self.sd_card_files[0]
+                else:
+                    # If directory is empty, keep current_sd_file as None
+                    self.current_sd_file = None
+                
                 return True
             elif audio_file.is_special and audio_file.name == THIS_DIR:
                 # Play all files in current directory
@@ -822,3 +969,8 @@ class AudioManager:
         except Exception as e:
             print(f"Fehler beim Abrufen der Bluetooth-Informationen: {e}")
             return self.connected_bt_device_name or "Error", None
+
+    def _is_audio_file(self, filename):
+        """Check if a file is an audio file based on its extension"""
+        ext = os.path.splitext(filename)[1].lower()
+        return ext in [".mp3", ".wav", ".ogg", ".m4a", ".flac"]

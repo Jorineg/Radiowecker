@@ -458,163 +458,125 @@ class UI:
             self.state.volume = self.state.volume_control.volume_down(2)
             self.state.volume_overlay_timeout = time.time() + self.VOLUME_OVERLAY_DURATION
 
-    def select_next_file(self):
-        """Select next file in browser"""
-        files = self.audio.get_current_files()
-        if not files or len(files) == 0:
-            return
-            
-        # Find current file index
-        current_idx = self.state.selected_file_idx
-        if self.audio.current_file:
-            try:
-                current_idx = files.index(self.audio.current_file)
-            except ValueError:
-                pass
-                
-        # Make sure current_idx is valid
-        if current_idx >= len(files):
-            current_idx = 0
-                
-        # Update to next file
-        next_idx = (current_idx + 1) % len(files)
-        self.state.selected_file_idx = next_idx
-        self.audio.current_file = files[next_idx]
-
-    def select_prev_file(self):
-        """Select previous file in browser"""
-        files = self.audio.get_current_files()
-        if not files or len(files) == 0:
-            return
-            
-        # Find current file index
-        current_idx = self.state.selected_file_idx
-        if self.audio.current_file:
-            try:
-                current_idx = files.index(self.audio.current_file)
-            except ValueError:
-                pass
-                
-        # Make sure current_idx is valid
-        if current_idx >= len(files):
-            current_idx = 0
-                
-        # Update to previous file
-        prev_idx = (current_idx - 1) % len(files)
-        self.state.selected_file_idx = prev_idx
-        self.audio.current_file = files[prev_idx]
-
     def select_file(self):
-        """Select current file in USB browser"""
-        files = self.audio.get_current_files()
-        if not files or len(files) == 0:
-            print("No USB files available")
-            return
-
-        # Get current file based on index
-        current_idx = self.state.selected_file_idx
-        if current_idx >= len(files):
-            print(f"Warning: selected_file_idx {current_idx} out of range, resetting to 0")
-            current_idx = 0
-            self.state.selected_file_idx = 0
-            
-        if self.audio.current_file:
-            try:
-                current_idx = files.index(self.audio.current_file)
-            except ValueError:
-                print(f"Warning: current_file not found in files list")
-                pass
-                
-        print(f"Selecting USB file at index {current_idx} of {len(files)} files")
-        file = files[current_idx]
-        if self.audio.navigate_to(file):
-            # Reset selection to first item when navigating to a new directory
-            self.state.selected_file_idx = 0
-            print(f"Navigated to directory: {file.path}")
-        else:
-            print(f"Selected file: {file.path}")
-            
-        # Keep the USB_BROWSER mode even when playing a file
-        # This allows the user to see what's playing and select other files
-
-    def select_next_sd_file(self):
-        """Select next file in SD card browser"""
-        files = self.audio.get_sd_card_files()
-        if not files or len(files) == 0:
+        """Select the current file in the file browser"""
+        if not self.audio.get_current_files():
+            print("No files to select")
             return
             
-        # Find current file index
-        current_idx = self.state.selected_file_idx
-        if self.audio.current_sd_file:
-            try:
-                current_idx = files.index(self.audio.current_sd_file)
-            except ValueError:
-                pass
+        try:
+            # Get the current file
+            if self.state.selected_file_idx < 0 or self.state.selected_file_idx >= len(self.audio.get_current_files()):
+                print(f"Invalid file index: {self.state.selected_file_idx}, resetting to 0")
+                self.state.selected_file_idx = 0
                 
-        # Make sure current_idx is valid
-        if current_idx >= len(files):
-            current_idx = 0
-                
-        # Update to next file
-        next_idx = (current_idx + 1) % len(files)
-        self.state.selected_file_idx = next_idx
-        self.audio.current_sd_file = files[next_idx]
-
-    def select_prev_sd_file(self):
-        """Select previous file in SD card browser"""
-        files = self.audio.get_sd_card_files()
-        if not files or len(files) == 0:
-            return
+            current_file = self.audio.get_current_files()[self.state.selected_file_idx]
             
-        # Find current file index
-        current_idx = self.state.selected_file_idx
-        if self.audio.current_sd_file:
-            try:
-                current_idx = files.index(self.audio.current_sd_file)
-            except ValueError:
-                pass
-                
-        # Make sure current_idx is valid
-        if current_idx >= len(files):
-            current_idx = 0
-                
-        # Update to previous file
-        prev_idx = (current_idx - 1) % len(files)
-        self.state.selected_file_idx = prev_idx
-        self.audio.current_sd_file = files[prev_idx]
+            # Navigate to the file or directory
+            if self.audio.navigate_to(current_file):
+                # If we navigated to a directory, reset the file index
+                self.state.selected_file_idx = 0
+                self.render()
+        except Exception as e:
+            print(f"Error selecting file: {e}")
+            # Reset the file index to a safe value
+            if self.audio.get_current_files():
+                self.state.selected_file_idx = 0
+            self.render()
 
     def select_sd_file(self):
-        """Select current file in SD card browser"""
-        files = self.audio.get_sd_card_files()
-        if not files or len(files) == 0:
-            print("No SD card files available")
+        """Select the current file in the SD card file browser"""
+        if not self.audio.get_sd_card_files():
+            print("No SD card files to select")
             return
-
-        # Get current file based on index
-        current_idx = self.state.selected_file_idx
-        if current_idx >= len(files):
-            print(f"Warning: selected_file_idx {current_idx} out of range, resetting to 0")
-            current_idx = 0
-            self.state.selected_file_idx = 0
             
-        if self.audio.current_sd_file:
-            try:
-                current_idx = files.index(self.audio.current_sd_file)
-            except ValueError:
-                print(f"Warning: current_sd_file not found in files list")
-                pass
+        try:
+            # Get the current file
+            if self.state.selected_file_idx < 0 or self.state.selected_file_idx >= len(self.audio.get_sd_card_files()):
+                print(f"Invalid SD file index: {self.state.selected_file_idx}, resetting to 0")
+                self.state.selected_file_idx = 0
                 
-        print(f"Selecting SD file at index {current_idx} of {len(files)} files")
-        file = files[current_idx]
-        if self.audio.navigate_to_sd_card(file):
-            # Reset selection to first item when navigating to a new directory
-            self.state.selected_file_idx = 0
-            print(f"Navigated to directory: {file.path}")
-        else:
-            print(f"Selected file: {file.path}")
+            current_file = self.audio.get_sd_card_files()[self.state.selected_file_idx]
             
-        # Keep the SD_CARD_BROWSER mode even when playing a file
-        # This allows the user to see what's playing and select other files
+            # Navigate to the file or directory
+            if self.audio.navigate_to_sd_card(current_file):
+                # If we navigated to a directory, reset the file index
+                self.state.selected_file_idx = 0
+                self.render()
+        except Exception as e:
+            print(f"Error selecting SD card file: {e}")
+            # Reset the file index to a safe value
+            if self.audio.get_sd_card_files():
+                self.state.selected_file_idx = 0
+            self.render()
+
+    def select_next_file(self):
+        """Select the next file in the file browser"""
+        if not self.audio.get_current_files():
+            print("No files to navigate")
+            return
+            
+        try:
+            # Increment the file index
+            self.state.selected_file_idx = (self.state.selected_file_idx + 1) % len(self.audio.get_current_files())
+            self.render()
+        except Exception as e:
+            print(f"Error selecting next file: {e}")
+            # Reset the file index to a safe value
+            if self.audio.get_current_files():
+                self.state.selected_file_idx = 0
+            self.render()
+
+    def select_prev_file(self):
+        """Select the previous file in the file browser"""
+        if not self.audio.get_current_files():
+            print("No files to navigate")
+            return
+            
+        try:
+            # Decrement the file index
+            self.state.selected_file_idx = (self.state.selected_file_idx - 1) % len(self.audio.get_current_files())
+            self.render()
+        except Exception as e:
+            print(f"Error selecting previous file: {e}")
+            # Reset the file index to a safe value
+            if self.audio.get_current_files():
+                self.state.selected_file_idx = 0
+            self.render()
+
+    def select_next_sd_file(self):
+        """Select the next file in the SD card file browser"""
+        if not self.audio.get_sd_card_files():
+            print("No SD card files to navigate")
+            return
+            
+        try:
+            # Increment the file index
+            self.state.selected_file_idx = (self.state.selected_file_idx + 1) % len(self.audio.get_sd_card_files())
+            self.render()
+        except Exception as e:
+            print(f"Error selecting next SD card file: {e}")
+            # Reset the file index to a safe value
+            if self.audio.get_sd_card_files():
+                self.state.selected_file_idx = 0
+            self.render()
+
+    def select_prev_sd_file(self):
+        """Select the previous file in the SD card file browser"""
+        if not self.audio.get_sd_card_files():
+            print("No SD card files to navigate")
+            return
+            
+        try:
+            # Decrement the file index
+            self.state.selected_file_idx = (self.state.selected_file_idx - 1) % len(self.audio.get_sd_card_files())
+            self.render()
+        except Exception as e:
+            print(f"Error selecting previous SD card file: {e}")
+            # Reset the file index to a safe value
+            if self.audio.get_sd_card_files():
+                self.state.selected_file_idx = 0
+            self.render()
 
     def show_main_menu(self):
         """Show main menu"""
