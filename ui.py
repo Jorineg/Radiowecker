@@ -224,7 +224,7 @@ class UI:
         files = self.audio.get_current_files()
         if not files or len(files) == 0:
             self.display.clear()
-            self.display.write_line(0, "No files found")
+            self.display.buffer.draw_text(0, 0, "No files found")
             return
 
         # Get current file based on index
@@ -258,7 +258,8 @@ class UI:
             if len(name) > 19:
                 name = name[:16] + "..."
                 
-            self.display.write_line(line, f"{prefix}{name}")
+            y_pos = line * 12  # Assuming 12 pixels per line
+            self.display.buffer.draw_text(0, y_pos, f"{prefix}{name}")
             line += 1
 
     def render_sd_card_browser(self):
@@ -266,7 +267,7 @@ class UI:
         files = self.audio.get_sd_card_files()
         if not files or len(files) == 0:
             self.display.clear()
-            self.display.write_line(0, "No SD card files")
+            self.display.buffer.draw_text(0, 0, "No SD card files")
             return
 
         # Get current file based on index
@@ -300,7 +301,8 @@ class UI:
             if len(name) > 19:
                 name = name[:16] + "..."
                 
-            self.display.write_line(line, f"{prefix}{name}")
+            y_pos = line * 12  # Assuming 12 pixels per line
+            self.display.buffer.draw_text(0, y_pos, f"{prefix}{name}")
             line += 1
 
     def render_standby_clock(self):
