@@ -1,22 +1,19 @@
-# audio.py
+# audio.py - Main Audio Manager class for the Radiowecker project
 
 import csv
 import os
 import threading
-import random
-import subprocess
 import time
-from typing import List, Tuple, Optional, Dict, Callable, Any
-from pathlib import Path
+from typing import List, Tuple, Optional, Dict
 from queue import Queue, Empty
-from dataclasses import dataclass
-from enum import Enum, auto
 
-# Constants
-BACK = "<zurück>"
-THIS_DIR = "<dieser Ordner>"
-FILE_PATH_PREFIX = ""
-SUPPORTED_AUDIO_EXTENSIONS = [".mp3", ".wav", ".ogg", ".m4a", ".flac"]
+# Import our modular components
+from audio_types import (
+    AudioSource, AudioFile, AudioStation, AudioCommandType, 
+    AudioCommand, BACK, THIS_DIR, FILE_PATH_PREFIX, SUPPORTED_AUDIO_EXTENSIONS
+)
+from file_system import scan_directory as fs_scan_directory, find_audio_files_recursively
+from bluetooth_utils import get_bluetooth_info, toggle_bluetooth_mute, get_connected_bluetooth_device
 
 # Try importing optional dependencies
 try:
@@ -30,41 +27,6 @@ try:
     RPI_HARDWARE = True
 except ImportError:
     RPI_HARDWARE = False
-
-
-class AudioSource(Enum):
-    USB = auto()
-    SD_CARD = auto()
-    RADIO = auto()
-
-
-class AudioFile:
-    def __init__(self, path: str, is_dir: bool = False, name: str = None, is_special: bool = False):
-        self.path = path
-        self.is_dir = is_dir
-        self.is_special = is_special
-        self.name = name if name else os.path.basename(path)
-
-
-class AudioStation:
-    def __init__(self, name: str, url: str):
-        self.name = name
-        self.url = url
-
-
-class AudioCommandType(Enum):
-    PLAY_STATION = auto()
-    PLAY_FILE = auto()
-    STOP = auto()
-    TOGGLE_PAUSE = auto()
-    MUTE_BLUETOOTH = auto()
-    UNMUTE_BLUETOOTH = auto()
-
-
-@dataclass
-class AudioCommand:
-    command_type: AudioCommandType
-    data: any = None
 
 
 class AudioManager:
@@ -161,60 +123,6 @@ class AudioManager:
                 ]
         except FileNotFoundError:
             print(f"Warning: {filename} not found")
-            # Add some default stations
-            self.stations = [
-                AudioStation("Radio Example 1", "http://example.com/stream1"),
-                AudioStation("Radio Example 2", "http://example.com/stream2"),
-            ]
-
-    def _scan_common(self, directory: str, is_sd_card: bool = False) -> List[AudioFile]:
-        """Common directory scanning logic for both USB and SD card"""
-        result = []
-        current_storage_name = "SD card" if is_sd_card else "USB"
-        
-        # Check if directory exists
-        if not os.path.exists(directory):
-            print(f"{current_storage_name} directory does not exist: {directory}")
-            result.append(AudioFile(name=f"{current_storage_name} not mounted", path=directory, is_special=True))
-            return result
-            
-        try:
-            entries = os.listdir(directory)
-        except PermissionError:
-            print(f"Permission denied: {directory}")
-            result.append(AudioFile(name="Permission denied", path=directory, is_special=True))
-            return result
-        except Exception as e:
-            print(f"Error listing {current_storage_name} directory {directory}: {e}")
-            result.append(AudioFile(name=f"Error: {str(e)}", path=directory, is_special=True))
-            return result
-
-        # Add "this directory" option - always include it regardless of content
-        # It will recursively scan for audio files when selected
-        result.append(AudioFile(name=THIS_DIR, path=directory, is_special=True))
-
-        # Add back option if not in root directory
-        root_path = self.sd_card_mount_point if is_sd_card else "/"
-        if directory != root_path:
-            result.append(AudioFile(name=BACK, path=directory, is_special=True))
-
-        # Add directories
-        for entry in sorted(entries):
-            path = os.path.join(directory, entry)
-            if os.path.isdir(path) and not entry.startswith('.'):
-                result.append(AudioFile(name=entry, path=path, is_dir=True))
-
-        # Add audio files
-        for entry in sorted(entries):
-            path = os.path.join(directory, entry)
-            if os.path.isfile(path) and self._is_audio_file(entry):
-                result.append(AudioFile(name=entry, path=path))
-                                     
-        # If no files or directories were found (empty directory)
-        if len(result) == 0:
-            result.append(AudioFile(name="Empty directory", path=directory, is_special=True))
-            
-        return result
 
     def scan_directory(self, directory=None):
         """Scan directory for audio files and subdirectories"""
@@ -224,7 +132,7 @@ class AudioManager:
             else:
                 self.current_dir = directory
 
-            self.files = self._scan_common(directory, is_sd_card=False)
+            self.files = fs_scan_directory(directory, is_sd_card=False, root_path="/")
                 
         except Exception as e:
             print(f"Error scanning directory {directory}: {e}")
@@ -241,7 +149,7 @@ class AudioManager:
             else:
                 self.sd_card_dir = directory
 
-            self.sd_card_files = self._scan_common(directory, is_sd_card=True)
+            self.sd_card_files = fs_scan_directory(directory, is_sd_card=True, root_path=self.sd_card_mount_point)
                 
         except Exception as e:
             print(f"Error scanning SD card directory {directory}: {e}")
@@ -250,57 +158,17 @@ class AudioManager:
             # Add a special "error" entry
             self.sd_card_files.append(AudioFile(name=f"Error: {str(e)}", path=directory, is_special=True))
 
-    def _find_audio_files_recursively(self, directory, max_files=100):
-        """Find all audio files recursively in a directory and its subdirectories"""
-        audio_files = []
-        
-        if not os.path.exists(directory) or not os.path.isdir(directory):
-            print(f"Error: Directory does not exist or is not a directory: {directory}")
-            return audio_files
-            
-        try:
-            # Use os.walk for efficient recursive directory traversal
-            for root, dirs, files in os.walk(directory):
-                # Skip hidden directories
-                dirs[:] = [d for d in dirs if not d.startswith('.')]
-                
-                # Process files in current directory
-                for file in files:
-                    # Skip hidden files
-                    if file.startswith('.'):
-                        continue
-                        
-                    # Check if we've reached the maximum number of files
-                    if len(audio_files) >= max_files:
-                        print(f"Reached maximum of {max_files} files, stopping recursive scan")
-                        return audio_files
-                        
-                    # Check if it's an audio file
-                    if self._is_audio_file(file):
-                        full_path = os.path.join(root, file)
-                        audio_files.append(AudioFile(full_path))
-                        
-                    # Print progress every 10 files
-                    if len(audio_files) % 10 == 0 and len(audio_files) > 0:
-                        print(f"Found {len(audio_files)} audio files so far...")
-                        
-        except PermissionError:
-            print(f"Permission denied while scanning directory: {directory}")
-        except Exception as e:
-            print(f"Error finding audio files recursively: {e}")
-            
-        print(f"Found {len(audio_files)} audio files in total")
-        return audio_files
-
     def _clear_media_list(self):
         """Clear the existing media list"""
         if not self.media_list:
             return
             
         self.media_list.lock()
-        while self.media_list.count() > 0:
-            self.media_list.remove_index(0)
-        self.media_list.unlock()
+        try:
+            while self.media_list.count() > 0:
+                self.media_list.remove_index(0)
+        finally:
+            self.media_list.unlock()
 
     def _create_playlist(self, start_file: AudioFile, files_list: List[AudioFile], directory: str, 
                         is_sd_card: bool = False):
@@ -314,23 +182,26 @@ class AudioManager:
             print(f"Creating recursive playlist from {source_name}: {directory}")
             
             # Find all audio files recursively
-            all_files = self._find_audio_files_recursively(directory, max_files=100)
+            all_files = find_audio_files_recursively(directory, max_files=100)
             
             if all_files:
                 # Shuffle the files
+                import random
                 random.shuffle(all_files)
                 
-                # Take the first 20 files (or fewer if less than 20 were found)
-                playlist_files = all_files[:20]
+                # Take the first 30 files (or fewer if less than 30 were found)
+                playlist_files = all_files[:30]
                 
                 print(f"Adding {len(playlist_files)} files to playlist from recursive {source_name} scan")
                 
                 # Add all files to media list
                 self.media_list.lock()
-                for file in playlist_files:
-                    media = self.instance.media_new(FILE_PATH_PREFIX + file.path)
-                    self.media_list.add_media(media)
-                self.media_list.unlock()
+                try:
+                    for file in playlist_files:
+                        media = self.instance.media_new(FILE_PATH_PREFIX + file.path)
+                        self.media_list.add_media(media)
+                finally:
+                    self.media_list.unlock()
                 
                 # Set source
                 self.source = AudioSource.SD_CARD if is_sd_card else AudioSource.USB
@@ -345,10 +216,12 @@ class AudioManager:
                     print(f"Adding {len(playable_files)} files to playlist from current {source_name}")
                     # Add all files to media list
                     self.media_list.lock()
-                    for file in playable_files:
-                        media = self.instance.media_new(FILE_PATH_PREFIX + file.path)
-                        self.media_list.add_media(media)
-                    self.media_list.unlock()
+                    try:
+                        for file in playable_files:
+                            media = self.instance.media_new(FILE_PATH_PREFIX + file.path)
+                            self.media_list.add_media(media)
+                    finally:
+                        self.media_list.unlock()
                     
                     # Set source
                     self.source = AudioSource.SD_CARD if is_sd_card else AudioSource.USB
@@ -401,10 +274,12 @@ class AudioManager:
         
         # Add files to media list
         self.media_list.lock()
-        for file in playlist_order:
-            media = self.instance.media_new(FILE_PATH_PREFIX + file.path)
-            self.media_list.add_media(media)
-        self.media_list.unlock()
+        try:
+            for file in playlist_order:
+                media = self.instance.media_new(FILE_PATH_PREFIX + file.path)
+                self.media_list.add_media(media)
+        finally:
+            self.media_list.unlock()
         
         # Set source
         self.source = AudioSource.SD_CARD if is_sd_card else AudioSource.USB
@@ -504,40 +379,13 @@ class AudioManager:
 
     def _mute_bluetooth(self):
         """Temporarily disable Bluetooth audio output"""
-        self._update_bluetooth_connection()
-        try:
-            if self.connected_bt_device:
-                # Mute first, then pause
-                bt_source = f"bluez_source.{self.connected_bt_device.replace(':', '_')}.a2dp_source"
-                subprocess.run(['pactl', 'set-source-mute', bt_source, '1'], check=False)
-                
-                # Send pause signal
-                device_path = f"/org/bluez/hci0/dev_{self.connected_bt_device.replace(':', '_')}"
-                subprocess.run(['dbus-send', '--system', '--dest=org.bluez', '--print-reply', 
-                             device_path, 'org.bluez.MediaControl1.Pause'], check=False)
-                self.bluetooth_muted = True
-        except Exception as e:
-            print(f"Error muting Bluetooth: {e}")
+        # Use Bluetooth utilities
+        self.bluetooth_muted = toggle_bluetooth_mute(mute=True)
 
     def _unmute_bluetooth(self):
         """Re-enable Bluetooth audio output"""
-        self._update_bluetooth_connection()
-        try:
-            if self.connected_bt_device:
-                # Send play signal first to activate A2DP
-                device_path = f"/org/bluez/hci0/dev_{self.connected_bt_device.replace(':', '_')}"
-                subprocess.run(['dbus-send', '--system', '--dest=org.bluez', '--print-reply', 
-                             device_path, 'org.bluez.MediaControl1.Play'], check=False)
-                
-                # Wait briefly for A2DP source to be available
-                time.sleep(0.5)
-                
-                # Then unmute
-                bt_source = f"bluez_source.{self.connected_bt_device.replace(':', '_')}.a2dp_source"
-                subprocess.run(['pactl', 'set-source-mute', bt_source, '0'], check=False)
-                self.bluetooth_muted = False
-        except Exception as e:
-            print(f"Error unmuting Bluetooth: {e}")
+        # Use Bluetooth utilities
+        self.bluetooth_muted = not toggle_bluetooth_mute(mute=False)
 
     def _play_station(self, station: AudioStation):
         """Internal method to play a radio station"""
@@ -608,6 +456,7 @@ class AudioManager:
             # Check if the mount point exists and is mounted
             if os.path.exists(self.sd_card_mount_point):
                 # Check if it's mounted
+                import subprocess
                 mount_result = subprocess.run(['findmnt', self.sd_card_mount_point], 
                                          capture_output=True, text=True, check=False)
                 
@@ -657,6 +506,7 @@ class AudioManager:
                 
             elif audio_file.is_special and audio_file.name == BACK:
                 # Go to parent directory
+                from pathlib import Path
                 current_dir = self.sd_card_dir if is_sd_card else self.current_dir
                 parent = str(Path(current_dir).parent)
                 
@@ -760,18 +610,14 @@ class AudioManager:
 
     def _update_bluetooth_connection(self):
         """Update information about connected Bluetooth devices"""
-        try:
-            result = subprocess.run(['bluetoothctl', 'info'], capture_output=True, text=True, check=False)
-            self.connected_bt_device = None
-            self.connected_bt_device_name = None
-            for line in result.stdout.splitlines():
-                if 'Device' in line:
-                    self.connected_bt_device = line.split()[1]
-                if 'Name' in line:
-                    self.connected_bt_device_name = line.split('Name: ')[1]
-                    break
-        except Exception as e:
-            print(f"Error updating Bluetooth connection: {e}")
+        self.connected_bt_device_name = get_connected_bluetooth_device()
+        if self.connected_bt_device_name:
+            # Extract device address from name
+            import re
+            self.connected_bt_device = re.search(r'([0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2})', 
+                                            self.connected_bt_device_name, re.IGNORECASE)
+            if self.connected_bt_device:
+                self.connected_bt_device = self.connected_bt_device.group(1)
 
     def get_bluetooth_info(self, force_update=False):
         """Get information about the connected Bluetooth device"""
@@ -783,59 +629,17 @@ class AudioManager:
                    f"{self.current_bt_track or ''}\n{self.current_bt_artist or ''}" if self.current_bt_track else None)
         
         self.last_bt_update = current_time
-        self._update_bluetooth_connection()
         
-        if not self.connected_bt_device:
-            self.current_bt_track = None
-            self.current_bt_artist = None
-            return "Not connected", None
+        bt_title, bt_artist, bt_status = get_bluetooth_info()
+        self.current_bt_track = bt_title
+        self.current_bt_artist = bt_artist
+        
+        if not bt_title or bt_title == "Unknown Title":
+            # No track info
+            return self.connected_bt_device_name or "Not connected", None
+        
+        track_info = bt_title
+        if bt_artist and bt_artist != "Unknown Artist":
+            track_info += f"\n{bt_artist}"
             
-        try:
-            # Get track information
-            device_path = f"/org/bluez/hci0/dev_{self.connected_bt_device.replace(':', '_')}/player0"
-            result = subprocess.run(['dbus-send', '--system', '--dest=org.bluez', '--print-reply',
-                                    device_path, 'org.freedesktop.DBus.Properties.Get',
-                                    'string:org.bluez.MediaPlayer1', 'string:Track'],
-                                    capture_output=True, text=True, check=False)
-            
-            # Parse the track information
-            self.current_bt_track = None
-            self.current_bt_artist = None
-            
-            lines = result.stdout.splitlines()
-            for i, line in enumerate(lines):
-                # Look for keys (Title, Artist)
-                if "string" in line:
-                    if "Title" in line:
-                        # The value is in the next line
-                        if i + 1 < len(lines) and "variant" in lines[i+1]:
-                            value_line = lines[i+1]
-                            if "string" in value_line:
-                                parts = value_line.split('"')
-                                if len(parts) >= 2:
-                                    self.current_bt_track = parts[1]
-                    elif "Artist" in line:
-                        # The value is in the next line
-                        if i + 1 < len(lines) and "variant" in lines[i+1]:
-                            value_line = lines[i+1]
-                            if "string" in value_line:
-                                parts = value_line.split('"')
-                                if len(parts) >= 2:
-                                    self.current_bt_artist = parts[1]
-            
-            track_info = None
-            if self.current_bt_track:
-                track_info = f"{self.current_bt_track}"
-                if self.current_bt_artist:
-                    track_info += f"\n{self.current_bt_artist}"
-            
-            return self.connected_bt_device_name or "Connected", track_info
-            
-        except Exception as e:
-            print(f"Error retrieving Bluetooth information: {e}")
-            return self.connected_bt_device_name or "Error", None
-
-    def _is_audio_file(self, filename):
-        """Check if a file is an audio file based on its extension"""
-        ext = os.path.splitext(filename)[1].lower()
-        return ext in SUPPORTED_AUDIO_EXTENSIONS
+        return self.connected_bt_device_name or "Connected", track_info
