@@ -1,0 +1,3 @@
+# Absolute minimal config
+kernel=kernel.img
+gpu_mem=16

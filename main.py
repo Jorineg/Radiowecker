@@ -35,6 +35,11 @@ class RadioWecker:
     def init_components(self):
         """Initialize all system components"""
         try:
+            # Connect to WiFi if on Pi
+            if self.is_pi:
+                # Replace with your WiFi credentials
+                self.connect_wifi("raspberrypi", "raspberry")
+
             # Create display
             if self.is_pi:
                 self.display = OLEDDisplay(128, 64)
@@ -146,6 +151,20 @@ class RadioWecker:
         self.cleanup()
         sys.exit(0)
 
+    def connect_wifi(self, ssid: str, password: str) -> bool:
+        """Connect to a WiFi network using nmcli."""
+        if not self.is_pi:
+            return True
+        try:
+            cmd = ['sudo', 'nmcli', 'device', 'wifi', 'connect', ssid, 'password', password]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                print(f"Connection error: {result.stderr}")
+                return False
+            return True
+        except Exception as e:
+            print(f"Failed to connect to WiFi: {e}")
+            return False
 
 def main():
     """Application entry point"""

@@ -1,0 +1,19 @@
+# Minimal boot config for testing
+arm_control=0x200
+arm_64bit=0
+
+# Kernel settings
+disable_commandline_tags=1
+enable_uart=1
+kernel_old=1
+kernel=kernel.img
+
+# LED setup
+gpio=47=op,pn   # ACT LED as output, no pull-up
+
+# Disable everything we don't need
+disable_overscan=1
+disable_audio=1
+disable_splash=1
+avoid_warnings=2
+gpu_mem=16

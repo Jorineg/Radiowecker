@@ -1,43 +1,53 @@
-# Optimized config.txt for fast boot
+# Basic firmware options  
+# arm_64bit=0  
+# arm_control=0x200  
+# start_file=start.elf  
+# fixup_file=fixup.dat
 
-# Bare metal boot settings for early display init
-kernel_old=1
-disable_commandline_tags=1
-kernel=kernel7l.img        # Our early init code (32-bit)
-os_prefix=orig/           # Directory for original kernel
-arm_64bit=0              # Force 32-bit mode for our early init
-
-# Boot optimizations
-boot_delay=0
-boot_delay_ms=0
-force_turbo=1
-arm_boost=1
-disable_fw_kms_setup=1
-
-# Minimal GPU memory
+# ----------------------------------------------------------------  
+# Early–Boot (Splash) Stage  
+# This stage loads your custom splash kernel from the root (kernel.img)  
+kernel=kernel.img  
 gpu_mem=16
 
-# Faster boot clock
-init_uart_clock=48000000
+# Set up the I²C display GPIOs (bit–banged on GPIO2 and GPIO3)  
+gpio=2=op,pu  
+gpio=3=op,pu  
 
-# Display optimizations (but keep it functional)
-disable_overscan=1
-hdmi_blanking=1
-hdmi_enable_4kp60=0
-max_framebuffers=2
+# Configure a debug LED on GPIO26 (optional)  
+gpio=26=op
 
-# I2C settings for our early init
-dtparam=i2c_arm=off   # We're bit-banging, so disable hardware I2C
-gpio=2,3=op           # Set GPIO 2,3 as outputs at boot
+# Disable unused peripherals to speed up boot  
+disable_overscan=1  
+disable_audio=1         # Turn off early audio support  
+disable_splash=1        # Disable firmware’s own splash  
+hdmi_ignore_hotplug=1   # Disable HDMI  
+camera_auto_detect=0    # Disable camera  
+avoid_warnings=2  
+enable_uart=1
 
-# Original I2C settings (will be used after chain-loading)
-[orig/]
-dtparam=i2c_arm=on
-dtparam=i2c=on
+# ----------------------------------------------------------------  
+# Main System (Linux) Boot Configuration  
+# These settings come into effect when the splash kernel finishes and control is passed on.  
+[all]
+# Specify the original kernel files location. In your case, everything is in /orig.
+# os_prefix=orig/ # don't as this makes the system expect also all the other files in /orig/
 
-# Audio - IQaudio DAC Plus
-dtparam=i2s=on
-dtoverlay=iqaudio-dacplus
+# Choose the appropriate Linux kernel image. For Raspberry Pi Zero 2 W in 32-bit mode,
+# kernel7l.img is typically recommended. (Other images, like kernel8.img, are for 64-bit.)
+kernel=/orig/kernel7l.img
 
-# Enable DRM VC4 V3D driver
-dtoverlay=vc4-kms-v3d
+# Re-enable and configure hardware for your radio alarm clock:
+dtparam=i2c_arm=on             # Enable hardware I²C (Linux will reinitialize GPIO2/3)
+dtparam=i2s=on                 # Enable I2S support for audio DAC output
+dtparam=audio=on               # Enable the Linux audio subsystem
+dtoverlay=iqaudio-dacplus      # Load your DAC overlay (adjust if needed)
+
+dtparam=wifi=on               # Enable WiFi for internet radio & network time  
+dtparam=bluetooth=on          # Enable Bluetooth so you can use it as a speaker
+
+# Enable USB host mode for reading USB sticks  
+dtoverlay=dwc2,dr_mode=host
+
+arm_boost=1                   # Run CPU at full speed  
+disable_fw_kms_setup=1        # Disable unused firmware graphics settings  

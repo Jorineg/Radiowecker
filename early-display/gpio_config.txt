@@ -1,0 +1,24 @@
+# Test config using GPIO2/3 for I2C and GPIO26 for debug
+kernel=kernel.img
+gpu_mem=16
+
+# Configure I2C pins with pull-ups
+gpio=2=op,pu   # SDA with pull-up
+gpio=3=op,pu   # SCL with pull-up
+gpio=22=op     # Debug LED
+gpio=26=op     # Debug LED
+
+# Enable core clock for EMMC
+core_freq=250
+core_freq_min=250
+
+# Debug output enabled
+enable_uart=1
+
+# Disable features we don't need
+disable_overscan=1
+disable_audio=1
+disable_splash=1
+avoid_warnings=2
+
+kernel_address=0x4000

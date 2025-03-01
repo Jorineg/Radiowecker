@@ -10,6 +10,8 @@ sends the SSD1306 initialization commands and welcome screen data.
 
 #include <stdint.h>
 #include <stddef.h>
+#include "display_commands.h"  // Contains welcome_screen_buffer & welcome_screen_buffer_size
+#include "kernel_loader.h"
 
 #ifdef LINUX_BUILD
     #include <stdio.h>
@@ -23,8 +25,6 @@ sends the SSD1306 initialization commands and welcome screen data.
     #define GPIO_ADDR(offset) ((volatile uint32_t *)(GPIO_BASE + offset))
 #endif
 
-#include "display_commands.h"  // Contains welcome_screen_buffer & welcome_screen_buffer_size
-
 /*
 For the Raspberry Pi Zero 2 (BCM2710-based) the peripheral base is
 usually 0x3F000000. Adjust PERIPHERAL_BASE if needed.
@@ -37,8 +37,11 @@ usually 0x3F000000. Adjust PERIPHERAL_BASE if needed.
 #define GPSET_OFFSET    0x1C  // Output set registers
 #define GPCLR_OFFSET    0x28  // Output clear registers
 
-// I2C speed delay (busy-wait loop count; adjust as needed for ~400kHz)
-#define I2C_DELAY_COUNT 50
+// Timing constants based on measured values
+// delay(2138832) = 1s exactly
+#define DELAY_1S    2138832    // 1s
+#define DELAY_500MS 1069416    // 0.5s
+#define DELAY_I2C   11         // 5µs for 100kHz I2C (verified by measurement)
 
 // Which GPIO pins to use for bit-banging I²C?
 #define SDA_PIN 2
@@ -47,12 +50,12 @@ usually 0x3F000000. Adjust PERIPHERAL_BASE if needed.
 // SSD1306 I²C address
 #define SSD1306_ADDR 0x3C
 
+#define DEBUG_PIN 26
+
 //---------------------------------------------------------------------
-// Simple busy–wait delay for I²C timing
-static inline void i2c_delay(void)
-{
-volatile int i;
-for (i = 0; i < I2C_DELAY_COUNT; i++) { asm volatile("nop"); }
+// Simple busy–wait delay
+static void delay(int cycles) {
+    for (volatile int i = 0; i < cycles; i++) { }
 }
 
 //---------------------------------------------------------------------
@@ -91,22 +94,22 @@ static void i2c_start(void)
 {
 gpio_set(SDA_PIN);
 gpio_set(SCL_PIN);
-i2c_delay();
+delay(DELAY_I2C);
 gpio_clear(SDA_PIN);  // SDA goes low while SCL high
-i2c_delay();
+delay(DELAY_I2C);
 gpio_clear(SCL_PIN);
-i2c_delay();
+delay(DELAY_I2C);
 }
 
 // For a stop condition the sequence is reversed.
 static void i2c_stop(void)
 {
 gpio_clear(SDA_PIN);
-i2c_delay();
+delay(DELAY_I2C);
 gpio_set(SCL_PIN);
-i2c_delay();
+delay(DELAY_I2C);
 gpio_set(SDA_PIN);
-i2c_delay();
+delay(DELAY_I2C);
 }
 
 //---------------------------------------------------------------------
@@ -120,20 +123,20 @@ if (byte & 0x80)
 gpio_set(SDA_PIN);    // send bit ‘1’
 else
 gpio_clear(SDA_PIN);  // send bit ‘0’
-i2c_delay();
+delay(DELAY_I2C);
 gpio_set(SCL_PIN);      // clock high
-i2c_delay();
+delay(DELAY_I2C);
 gpio_clear(SCL_PIN);    // clock low
-i2c_delay();
+delay(DELAY_I2C);
 byte <<= 1;             // shift to next bit
 }
 // ACK clock: release SDA (leave it high) and clock one extra bit.
 gpio_set(SDA_PIN);
-i2c_delay();
+delay(DELAY_I2C);
 gpio_set(SCL_PIN);
-i2c_delay();
+delay(DELAY_I2C);
 gpio_clear(SCL_PIN);
-i2c_delay();
+delay(DELAY_I2C);
 return 0;
 }
 
@@ -178,6 +181,45 @@ i2c_stop();
 return 0;
 }
 
+// Debug functions using GPIO26
+static void debug_on(void) {
+    volatile uint32_t *gpset = GPIO_ADDR(GPSET_OFFSET);
+    *gpset = (1 << DEBUG_PIN);
+}
+
+static void debug_off(void) {
+    volatile uint32_t *gpclr = GPIO_ADDR(GPCLR_OFFSET);
+    *gpclr = (1 << DEBUG_PIN);
+}
+
+// Debug pattern: each blink is 0.7s on, 0.7s off
+static void debug_blink(int count) {
+    for (int i = 0; i < count; i++) {
+        debug_on();
+        delay(DELAY_1S * 7 / 10);  // 0.7s
+        debug_off();
+        delay(DELAY_1S * 7 / 10);  // 0.7s
+    }
+}
+
+// Success pattern: long-short-long with precise timing
+static void success_pattern(void) {
+    while(1) {
+        debug_on();
+        delay(DELAY_1S*60);      // 60s on
+        debug_off();
+        delay(DELAY_500MS*60);   // 30s off
+        debug_on();
+        delay(DELAY_500MS*60);   // 30s on
+        debug_off();
+        delay(DELAY_500MS*60);   // 30s off
+        debug_on();
+        delay(DELAY_1S*60);      // 60s on
+        debug_off();
+        delay(DELAY_1S*60);      // 60s off
+    }
+}
+
 #ifdef LINUX_BUILD
 int init_gpio(void) {
     int mem_fd;
@@ -207,21 +249,6 @@ int init_gpio(void) {
 #define init_gpio() 0
 #endif
 
-// Function to chain-load the next kernel
-static void load_next_kernel(void)
-{
-    // Function pointer type for the kernel entry
-    typedef void (*kernel_entry)(uint32_t r0, uint32_t r1, uint32_t r2);
-    
-    // The next kernel is loaded at 0x80000 (default load address)
-    kernel_entry next = (kernel_entry)0x80000;
-    
-    // Call the next kernel with standard parameters
-    // r0 = 0 (hardware type)
-    // r1 = 0xC42 (Raspberry Pi machine type)
-    // r2 = 0 (ATAGS/DTB pointer, we're not passing any)
-    next(0, 0xC42, 0);
-}
 
 //---------------------------------------------------------------------
 // main() – this is our boot-entry code.
@@ -230,9 +257,6 @@ static void load_next_kernel(void)
 int main(void)
 {
     if (init_gpio() != 0) {
-        #ifdef LINUX_BUILD
-            printf("GPIO initialization failed\n");
-        #endif
         return -1;
     }
 
@@ -246,31 +270,30 @@ int main(void)
 
     // SSD1306 initialization command sequence.
     const uint8_t init_commands[] = {
-    0xAE,        // Display off.
-    0xD5, 0x80,  // Set display clock divisor.
-    0xA8, 0x3F,  // Set multiplex ratio (1/64 duty).
-    0xD3, 0x00,  // Set display offset.
-    0x40,        // Set start line address.
-    0x8D, 0x14,  // Enable charge pump.
-    0x20, 0x00,  // Memory addressing mode: horizontal.
-    0xA0,        // Segment remap (normal).
-    0xC0,        // COM output scan direction (normal).
-    0xDA, 0x12,  // Set COM pins hardware configuration.
-    0x81, 0xCF,  // Set contrast control.
-    0xD9, 0xF1,  // Set pre-charge period.
-    0xDB, 0x40,  // Set VCOMH deselect level.
-    0xA4,        // Disable entire display on.
-    0xA6,        // Set normal display (non-inverted).
-    0xAF         // Display on.
+        0xAE,        // Display off.
+        0xD5, 0x80,  // Set display clock divisor.
+        0xA8, 0x3F,  // Set multiplex ratio (1/64 duty).
+        0xD3, 0x00,  // Set display offset.
+        0x40,        // Set start line address.
+        0x8D, 0x14,  // Enable charge pump.
+        0x20, 0x00,  // Memory addressing mode: horizontal.
+        0xA0,        // Segment remap (normal).
+        0xC0,        // COM output scan direction (normal).
+        0xDA, 0x12,  // Set COM pins hardware configuration.
+        0x81, 0xCF,  // Set contrast control.
+        0xD9, 0xF1,  // Set pre-charge period.
+        0xDB, 0x40,  // Set VCOMH deselect level.
+        0xA4,        // Disable entire display on.
+        0xA6,        // Set normal display (non-inverted).
+        0xAF         // Display on.
     };
 
     // Send each initialization command.
     for (size_t i = 0; i < sizeof(init_commands); i++) {
-    if (write_cmd(init_commands[i]) != 0) {
-        // In this early–boot example we simply loop on error.
-        while (1);
-    }
-    i2c_delay();
+        if (write_cmd(init_commands[i]) != 0) {
+            return -1;  // Error during init
+        }
+        delay(DELAY_I2C);
     }
 
     // Set display addressing to cover the full screen.
@@ -284,14 +307,12 @@ int main(void)
     // Now write the welcome screen image data.
     write_data(welcome_screen_buffer, welcome_screen_buffer_size);
 
-    #ifdef LINUX_BUILD
-        // Cleanup for Linux version
-        munmap(gpio_map, 4*1024);
-        return 0;
-    #else
-        // In bare metal mode, chain-load the next kernel
-        load_next_kernel();
-    #endif
+    // add delay to be able to see message even if next kernel decides to do some hardware stuff that would cause the display to turn off again
+    delay(DELAY_1S);
 
+    chainload_linux();
+    while (1)
+    {
+    }
     return 0;
 }
