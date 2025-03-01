@@ -223,8 +223,8 @@ class UI:
         """Render file browser"""
         files = self.audio.get_current_files()
         if not files or len(files) == 0:
-            self.display.clear()
-            self.display.buffer.draw_text(0, 0, "No files found")
+            # Don't clear the display here, just show the message
+            self.display.buffer.draw_text(0, self.state.CONTENT_START, "No files found")
             return
 
         # Get current file based on index
@@ -241,7 +241,7 @@ class UI:
         if end_idx - start_idx < 4:
             start_idx = max(0, end_idx - 4)
 
-        self.display.clear()
+        # Remove display.clear() as the main render already clears it
         
         # Display files
         line = 0
@@ -258,7 +258,7 @@ class UI:
             if len(name) > 19:
                 name = name[:16] + "..."
                 
-            y_pos = line * 12  # Assuming 12 pixels per line
+            y_pos = self.state.CONTENT_START + (line * 12)  # Start from content area
             self.display.buffer.draw_text(0, y_pos, f"{prefix}{name}")
             line += 1
 
@@ -266,8 +266,8 @@ class UI:
         """Render SD card browser"""
         files = self.audio.get_sd_card_files()
         if not files or len(files) == 0:
-            self.display.clear()
-            self.display.buffer.draw_text(0, 0, "No SD card files")
+            # Don't clear the display here, just show the message
+            self.display.buffer.draw_text(0, self.state.CONTENT_START, "No SD card files")
             return
 
         # Get current file based on index
@@ -284,7 +284,7 @@ class UI:
         if end_idx - start_idx < 4:
             start_idx = max(0, end_idx - 4)
 
-        self.display.clear()
+        # Remove display.clear() as the main render already clears it
         
         # Display files
         line = 0
@@ -301,7 +301,7 @@ class UI:
             if len(name) > 19:
                 name = name[:16] + "..."
                 
-            y_pos = line * 12  # Assuming 12 pixels per line
+            y_pos = self.state.CONTENT_START + (line * 12)  # Start from content area
             self.display.buffer.draw_text(0, y_pos, f"{prefix}{name}")
             line += 1
 
