@@ -10,6 +10,7 @@ class UIMode(Enum):
     NORMAL = "normal"
     MENU = "menu"
     FILE_BROWSER = "file_browser"
+    SD_CARD_BROWSER = "sd_card_browser"
     VOLUME = "volume"
 
 
@@ -26,7 +27,7 @@ class UIState:
         self.volume_overlay_timeout = 0
 
         # Sources
-        self.sources = ["RADIO", "USB", "INTERNET", "BLUETOOTH"]
+        self.sources = ["RADIO", "USB", "SD_CARD", "INTERNET", "BLUETOOTH"]
         self.current_source = 0
 
         # Volume control
@@ -60,6 +61,8 @@ class UIState:
         print("Switched to source:", self.get_current_source())
         if self.get_current_source() == "USB":
             self.mode = UIMode.FILE_BROWSER
+        elif self.get_current_source() == "SD_CARD":
+            self.mode = UIMode.SD_CARD_BROWSER
         else:
             self.mode = UIMode.NORMAL
 
@@ -105,6 +108,8 @@ class UI:
                     self.render_menu()
                 elif self.state.mode == UIMode.FILE_BROWSER:
                     self.render_file_browser()
+                elif self.state.mode == UIMode.SD_CARD_BROWSER:
+                    self.render_sd_card_browser()
                 else:
                     self.render_normal()
 
@@ -167,6 +172,10 @@ class UI:
         elif source == "USB":
             if self.audio.current_file:
                 self.display.buffer.draw_text(0, y, self.audio.current_file.name)
+                
+        elif source == "SD_CARD":
+            if self.audio.current_sd_file:
+                self.display.buffer.draw_text(0, y, self.audio.current_sd_file.name)
 
         elif source == "BLUETOOTH":
             device_name, track_info = self.audio.get_bluetooth_info()
@@ -221,6 +230,34 @@ class UI:
         if self.audio.current_file:
             try:
                 current_file_idx = files.index(self.audio.current_file)
+            except ValueError:
+                # If current_file is not in the list, use selected_file_idx
+                pass
+
+        for i in range(current_file_idx - 1, current_file_idx + 4):
+            file = get_file(i)
+            highlight = i == current_file_idx
+
+            name = f"[{file.name}]" if file.is_dir and not file.is_special else file.name
+            self.display.buffer.draw_text(0, y, (">" if highlight else " ") + name)
+            y += 10
+
+    def render_sd_card_browser(self):
+        """Render SD card browser"""
+        y = self.state.CONTENT_START
+        files = self.audio.get_sd_card_files()
+        
+        if not files:
+            self.display.buffer.draw_text(0, y, "No files found")
+            return
+
+        get_file = lambda i: files[i%len(files)]
+
+        # Find the index of current_sd_file in files list
+        current_file_idx = self.state.selected_file_idx
+        if self.audio.current_sd_file:
+            try:
+                current_file_idx = files.index(self.audio.current_sd_file)
             except ValueError:
                 # If current_file is not in the list, use selected_file_idx
                 pass
@@ -328,6 +365,15 @@ class UI:
                     elif button == "control_press":
                         self.select_file()
                 
+                elif current_source == "SD_CARD":
+                    # SD card file navigation
+                    if button == "control_cw":
+                        self.select_next_sd_file()
+                    elif button == "control_ccw":
+                        self.select_prev_sd_file()
+                    elif button == "control_press":
+                        self.select_sd_file()
+                
                 elif current_source == "BLUETOOTH":
                     # Bluetooth controls
                     if button == "control_cw":
@@ -421,6 +467,65 @@ class UI:
                 
         file = files[current_idx]
         if self.audio.navigate_to(file):
+            self.state.selected_file_idx = 1
+
+        if not file.is_dir:
+            self.state.mode = UIMode.NORMAL
+
+    def select_next_sd_file(self):
+        """Select next file in SD card browser"""
+        files = self.audio.get_sd_card_files()
+        if not files:
+            return
+            
+        # Find current file index
+        current_idx = self.state.selected_file_idx
+        if self.audio.current_sd_file:
+            try:
+                current_idx = files.index(self.audio.current_sd_file)
+            except ValueError:
+                pass
+                
+        # Update to next file
+        next_idx = (current_idx + 1) % len(files)
+        self.state.selected_file_idx = next_idx
+        self.audio.current_sd_file = files[next_idx]
+
+    def select_prev_sd_file(self):
+        """Select previous file in SD card browser"""
+        files = self.audio.get_sd_card_files()
+        if not files:
+            return
+            
+        # Find current file index
+        current_idx = self.state.selected_file_idx
+        if self.audio.current_sd_file:
+            try:
+                current_idx = files.index(self.audio.current_sd_file)
+            except ValueError:
+                pass
+                
+        # Update to previous file
+        prev_idx = (current_idx - 1) % len(files)
+        self.state.selected_file_idx = prev_idx
+        self.audio.current_sd_file = files[prev_idx]
+
+    def select_sd_file(self):
+        """Select current file in SD card browser"""
+        files = self.audio.get_sd_card_files()
+        if not files:
+            return
+
+        # Get current file based on index
+        current_idx = self.state.selected_file_idx
+        if self.audio.current_sd_file:
+            try:
+                current_idx = files.index(self.audio.current_sd_file)
+            except ValueError:
+                pass
+                
+        file = files[current_idx]
+        if self.audio.navigate_to_sd_card(file):
             self.state.selected_file_idx = 1
 
         if not file.is_dir:

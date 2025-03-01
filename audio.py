@@ -100,6 +100,15 @@ class AudioManager:
         # USB/File playback
         self.current_dir = "/"
         self.files: List[AudioFile] = []
+        
+        # SD Card playback
+        self.sd_card_mount_point = "/mnt/musik"  # Hardcoded mount point
+        self.sd_card_dir = self.sd_card_mount_point
+        self.sd_card_files: List[AudioFile] = []
+        self.current_sd_file = None
+        
+        # Check if the SD card partition is mounted
+        self._setup_sd_card_partition()
 
         # Initialize VLC if available
         if VLC_AVAILABLE:
@@ -131,6 +140,10 @@ class AudioManager:
         # Scan directory
         self.scan_directory()
         self.current_file = self.files[0] if len(self.files) > 0 else None
+        
+        # Scan SD card directory
+        self.scan_sd_card_directory()
+        self.current_sd_file = self.sd_card_files[0] if len(self.sd_card_files) > 0 else None
 
     def load_stations(self, filename: str = "stations.csv"):
         """Load internet radio stations from CSV file"""
@@ -184,6 +197,58 @@ class AudioManager:
         # Add current directory
         self.files.append(AudioFile(self.current_dir, is_dir=True, name=THIS_DIR))
 
+    def scan_sd_card_directory(self, path: str = None):
+        """Scan SD card directory for audio files"""
+        if path:
+            self.sd_card_dir = path
+
+        self.sd_card_files.clear()
+        
+        # Check if SD card is mounted
+        if not os.path.exists(self.sd_card_mount_point):
+            self.sd_card_files.append(AudioFile("/", is_dir=True, name="SD Card mount point not found"))
+            return
+            
+        if not os.path.ismount(self.sd_card_mount_point):
+            self.sd_card_files.append(AudioFile("/", is_dir=True, name="SD Card not mounted"))
+            return
+
+        # Add parent directory if not in root
+        if self.sd_card_dir != self.sd_card_mount_point:
+            parent = str(Path(self.sd_card_dir).parent)
+            self.sd_card_files.append(AudioFile(parent, is_dir=True, name=BACK))
+
+        try:
+            # Add directories first
+            for item in sorted(os.listdir(self.sd_card_dir)):
+                full_path = os.path.join(self.sd_card_dir, item)
+                if os.path.isdir(full_path):
+                    self.sd_card_files.append(AudioFile(full_path, is_dir=True))
+
+            # Then add audio files
+            has_audio_files = False
+            for item in sorted(os.listdir(self.sd_card_dir)):
+                full_path = os.path.join(self.sd_card_dir, item)
+                if os.path.isfile(full_path):
+                    ext = os.path.splitext(item)[1].lower()
+                    if ext in [".mp3", ".wav", ".ogg", ".m4a"]:
+                        self.sd_card_files.append(AudioFile(full_path))
+                        has_audio_files = True
+                        
+            # Add current directory only if we have audio files to play
+            if has_audio_files:
+                self.sd_card_files.append(AudioFile(self.sd_card_dir, is_dir=True, name=THIS_DIR))
+                
+        except PermissionError:
+            print(f"Permission denied: {self.sd_card_dir}")
+            self.sd_card_files.append(AudioFile("/", is_dir=True, name="Permission denied"))
+        except FileNotFoundError:
+            print(f"SD card directory not found: {self.sd_card_dir}")
+            self.sd_card_files.append(AudioFile("/", is_dir=True, name="Directory not found"))
+        except Exception as e:
+            print(f"Error scanning SD card directory: {e}")
+            self.sd_card_files.append(AudioFile("/", is_dir=True, name=f"Error: {str(e)}"))
+
     def process_commands(self):
         """Process any pending audio commands - should be called from main thread"""
         try:
@@ -209,6 +274,11 @@ class AudioManager:
         self.command_queue.put(AudioCommand(AudioCommandType.PLAY_STATION, station))
 
     def play_file(self, file: AudioFile):
+        self.command_queue.put(AudioCommand(AudioCommandType.PLAY_FILE, file))
+
+    def play_sd_card_file(self, file: AudioFile):
+        """Play a file from the SD card"""
+        self.current_sd_file = file
         self.command_queue.put(AudioCommand(AudioCommandType.PLAY_FILE, file))
 
     def stop(self):
@@ -350,21 +420,37 @@ class AudioManager:
         self.media_list.unlock()
         return True
 
+    def _setup_sd_card_partition(self):
+        """Check if the SD card partition is mounted"""
+        if not RPI_HARDWARE:
+            # For testing on non-Pi hardware
+            self.sd_card_dir = "/"
+            return
+            
+        try:
+            # Check if the mount point exists and is mounted
+            if os.path.exists(self.sd_card_mount_point):
+                # Check if it's mounted
+                mount_result = subprocess.run(['findmnt', self.sd_card_mount_point], 
+                                           capture_output=True, text=True, check=False)
+                
+                if mount_result.returncode == 0:
+                    print(f"SD card partition mounted at {self.sd_card_mount_point}")
+                else:
+                    print(f"SD card mount point exists but is not mounted")
+            else:
+                print(f"SD card mount point {self.sd_card_mount_point} does not exist")
+                
+        except Exception as e:
+            print(f"Error checking SD card mount: {e}")
+
     def cleanup(self):
         """Cleanup resources"""
-        if self.player:
-            self.player.stop()
-            self.player.release()
-            self.player = None
-        if self.list_player:
-            self.list_player.release()
-            self.list_player = None
-        if self.media_list:
-            self.media_list.release()
-            self.media_list = None
-        if self.instance:
-            self.instance.release()
-            self.instance = None
+        if VLC_AVAILABLE:
+            if self.player:
+                self.player.stop()
+            
+        # No need to unmount the SD card as it's handled by the system
 
     def navigate_to(self, audio_file: AudioFile):
         """Navigate to directory or play file"""
@@ -380,9 +466,27 @@ class AudioManager:
             self.play_file(audio_file)
             return False
 
+    def navigate_to_sd_card(self, audio_file: AudioFile):
+        """Navigate to directory or play file on SD card"""
+        if audio_file.is_dir and not audio_file.is_special:
+            self.scan_sd_card_directory(audio_file.path)
+            return True
+        elif audio_file.is_special and audio_file.name == BACK:
+            # go to parent directory
+            parent = str(Path(self.sd_card_dir).parent)
+            self.scan_sd_card_directory(parent)
+            return True
+        else:
+            self.play_sd_card_file(audio_file)
+            return False
+
     def get_current_files(self) -> List[AudioFile]:
         """Get files in current directory"""
         return self.files
+
+    def get_sd_card_files(self) -> List[AudioFile]:
+        """Get files in current SD card directory"""
+        return self.sd_card_files
 
     def get_stations(self) -> List[AudioStation]:
         """Get available radio stations"""
@@ -398,6 +502,8 @@ class AudioManager:
             return "RADIO", self.current_station.name
         elif self.current_file:
             return "USB", self.current_file.name
+        elif self.current_sd_file:
+            return "SD CARD", self.current_sd_file.name
         return "", ""
 
     def set_volume(self, volume: int):
