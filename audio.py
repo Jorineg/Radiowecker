@@ -101,9 +101,17 @@ class AudioManager:
             return
             
         if RPI_HARDWARE:
-            self.instance = vlc.Instance("--verbose=2", "--aout=pulse")
+            # Add audio normalization filter to balance loudness across all audio sources
+            self.instance = vlc.Instance("--verbose=2", "--aout=pulse",
+                                        "--audio-filter=normvol",
+                                        "--norm-max-level=1.8",
+                                        "--norm-buff-size=10")
         else:
-            self.instance = vlc.Instance("--verbose=2")
+            # Add audio normalization filter to balance loudness across all audio sources
+            self.instance = vlc.Instance("--verbose=2",
+                                        "--audio-filter=normvol",
+                                        "--norm-max-level=1.8",
+                                        "--norm-buff-size=10")
             
         self.player = self.instance.media_player_new()
         self.media_list = self.instance.media_list_new()
