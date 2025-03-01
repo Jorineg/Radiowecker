@@ -183,19 +183,33 @@ class AudioManager:
                     self.files.append(AudioFile(full_path, is_dir=True))
 
             # Then add audio files
+            has_audio_files = False
             for item in sorted(os.listdir(self.current_dir)):
                 full_path = os.path.join(self.current_dir, item)
                 if os.path.isfile(full_path):
                     ext = os.path.splitext(item)[1].lower()
                     if ext in [".mp3", ".wav", ".ogg", ".m4a"]:
                         self.files.append(AudioFile(full_path))
+                        has_audio_files = True
+                        
+            # Add current directory only if we have audio files to play
+            if has_audio_files:
+                self.files.append(AudioFile(self.current_dir, is_dir=True, name=THIS_DIR))
+                
         except PermissionError:
             print(f"Permission denied: {self.current_dir}")
+            self.files.append(AudioFile("/", is_dir=True, name="Permission denied"))
+        except FileNotFoundError:
+            print(f"Directory not found: {self.current_dir}")
+            self.files.append(AudioFile("/", is_dir=True, name="Directory not found"))
         except Exception as e:
             print(f"Error scanning directory: {e}")
-
-        # Add current directory
-        self.files.append(AudioFile(self.current_dir, is_dir=True, name=THIS_DIR))
+            self.files.append(AudioFile("/", is_dir=True, name=f"Error: {str(e)}"))
+            
+        # If we somehow ended up with an empty list, add a dummy entry
+        if not self.files:
+            print("Warning: Empty files list after scanning, adding dummy entry")
+            self.files.append(AudioFile("/", is_dir=True, name="Empty directory"))
 
     def scan_sd_card_directory(self, path: str = None):
         """Scan SD card directory for audio files"""
@@ -208,7 +222,7 @@ class AudioManager:
         if not os.path.exists(self.sd_card_mount_point):
             self.sd_card_files.append(AudioFile("/", is_dir=True, name="SD Card mount point not found"))
             return
-            
+        
         if not os.path.ismount(self.sd_card_mount_point):
             self.sd_card_files.append(AudioFile("/", is_dir=True, name="SD Card not mounted"))
             return
@@ -234,11 +248,11 @@ class AudioManager:
                     if ext in [".mp3", ".wav", ".ogg", ".m4a"]:
                         self.sd_card_files.append(AudioFile(full_path))
                         has_audio_files = True
-                        
+                    
             # Add current directory only if we have audio files to play
             if has_audio_files:
                 self.sd_card_files.append(AudioFile(self.sd_card_dir, is_dir=True, name=THIS_DIR))
-                
+            
         except PermissionError:
             print(f"Permission denied: {self.sd_card_dir}")
             self.sd_card_files.append(AudioFile("/", is_dir=True, name="Permission denied"))
@@ -248,6 +262,11 @@ class AudioManager:
         except Exception as e:
             print(f"Error scanning SD card directory: {e}")
             self.sd_card_files.append(AudioFile("/", is_dir=True, name=f"Error: {str(e)}"))
+            
+        # If we somehow ended up with an empty list, add a dummy entry
+        if not self.sd_card_files:
+            print("Warning: Empty SD card files list after scanning, adding dummy entry")
+            self.sd_card_files.append(AudioFile("/", is_dir=True, name="Empty directory"))
 
     def process_commands(self):
         """Process any pending audio commands - should be called from main thread"""
@@ -557,38 +576,54 @@ class AudioManager:
 
     def navigate_to(self, audio_file: AudioFile):
         """Navigate to directory or play file"""
-        if audio_file.is_dir and not audio_file.is_special:
-            self.scan_directory(audio_file.path)
-            return True
-        elif audio_file.is_special and audio_file.name == BACK:
-            # go to parent directory
-            parent = str(Path(self.current_dir).parent)
-            self.scan_directory(parent)
-            return True
-        elif audio_file.is_special and audio_file.name == THIS_DIR:
-            # Play all files in current directory
-            self.play_file(audio_file)
+        if not audio_file:
+            print("Warning: Attempted to navigate to None audio_file")
             return False
-        else:
-            self.play_file(audio_file)
+            
+        try:
+            if audio_file.is_dir and not audio_file.is_special:
+                self.scan_directory(audio_file.path)
+                return True
+            elif audio_file.is_special and audio_file.name == BACK:
+                # go to parent directory
+                parent = str(Path(self.current_dir).parent)
+                self.scan_directory(parent)
+                return True
+            elif audio_file.is_special and audio_file.name == THIS_DIR:
+                # Play all files in current directory
+                self.play_file(audio_file)
+                return False
+            else:
+                self.play_file(audio_file)
+                return False
+        except Exception as e:
+            print(f"Error navigating to file: {e}")
             return False
 
     def navigate_to_sd_card(self, audio_file: AudioFile):
         """Navigate to directory or play file on SD card"""
-        if audio_file.is_dir and not audio_file.is_special:
-            self.scan_sd_card_directory(audio_file.path)
-            return True
-        elif audio_file.is_special and audio_file.name == BACK:
-            # go to parent directory
-            parent = str(Path(self.sd_card_dir).parent)
-            self.scan_sd_card_directory(parent)
-            return True
-        elif audio_file.is_special and audio_file.name == THIS_DIR:
-            # Play all files in current directory
-            self.play_sd_card_file(audio_file)
+        if not audio_file:
+            print("Warning: Attempted to navigate to None audio_file")
             return False
-        else:
-            self.play_sd_card_file(audio_file)
+            
+        try:
+            if audio_file.is_dir and not audio_file.is_special:
+                self.scan_sd_card_directory(audio_file.path)
+                return True
+            elif audio_file.is_special and audio_file.name == BACK:
+                # go to parent directory
+                parent = str(Path(self.sd_card_dir).parent)
+                self.scan_sd_card_directory(parent)
+                return True
+            elif audio_file.is_special and audio_file.name == THIS_DIR:
+                # Play all files in current directory
+                self.play_sd_card_file(audio_file)
+                return False
+            else:
+                self.play_sd_card_file(audio_file)
+                return False
+        except Exception as e:
+            print(f"Error navigating to SD card file: {e}")
             return False
 
     def get_current_files(self) -> List[AudioFile]:

@@ -220,67 +220,87 @@ class UI:
 
     def render_file_browser(self):
         """Render file browser"""
-        y = self.state.CONTENT_START
         files = self.audio.get_current_files()
+        if not files or len(files) == 0:
+            self.display.clear()
+            self.display.write_line(0, "No files found")
+            return
 
-        get_file = lambda i: files[i%len(files)]
+        # Get current file based on index
+        current_idx = self.state.selected_file_idx
+        if current_idx >= len(files):
+            current_idx = 0
+            self.state.selected_file_idx = 0
 
-        # Find the index of current_file in files list
-        current_file_idx = self.state.selected_file_idx
-        if self.audio.current_file:
-            try:
-                current_file_idx = files.index(self.audio.current_file)
-            except ValueError:
-                # If current_file is not in the list, use selected_file_idx
-                pass
+        # Calculate which files to display
+        start_idx = max(0, current_idx - 1)
+        end_idx = min(len(files), start_idx + 4)
+        
+        # Adjust start_idx if we have fewer than 4 files to display
+        if end_idx - start_idx < 4:
+            start_idx = max(0, end_idx - 4)
 
-        for i in range(current_file_idx - 1, current_file_idx + 4):
-            file = get_file(i)
-            highlight = i == current_file_idx
-
-            name = f"[{file.name}]" if file.is_dir and not file.is_special else file.name
-            self.display.buffer.draw_text(0, y, (">" if highlight else " ") + name)
-            y += 10
+        self.display.clear()
+        
+        # Display files
+        line = 0
+        for i in range(start_idx, end_idx):
+            file = files[i]
+            prefix = ">" if i == current_idx else " "
+            
+            # Add play indicator if this is the currently playing file
+            if (self.audio.current_file and self.audio.current_file == file and 
+                self.audio.source == AudioSource.USB):
+                prefix = "▶"
+                
+            name = file.name
+            if len(name) > 19:
+                name = name[:16] + "..."
+                
+            self.display.write_line(line, f"{prefix}{name}")
+            line += 1
 
     def render_sd_card_browser(self):
         """Render SD card browser"""
-        y = self.state.CONTENT_START
         files = self.audio.get_sd_card_files()
+        if not files or len(files) == 0:
+            self.display.clear()
+            self.display.write_line(0, "No SD card files")
+            return
+
+        # Get current file based on index
+        current_idx = self.state.selected_file_idx
+        if current_idx >= len(files):
+            current_idx = 0
+            self.state.selected_file_idx = 0
+
+        # Calculate which files to display
+        start_idx = max(0, current_idx - 1)
+        end_idx = min(len(files), start_idx + 4)
         
-        if not files:
-            self.display.buffer.draw_text(0, y, "No files found")
-            return
+        # Adjust start_idx if we have fewer than 4 files to display
+        if end_idx - start_idx < 4:
+            start_idx = max(0, end_idx - 4)
 
-        # Ensure we have at least one file to prevent modulo by zero error
-        if len(files) == 0:
-            return
+        self.display.clear()
+        
+        # Display files
+        line = 0
+        for i in range(start_idx, end_idx):
+            file = files[i]
+            prefix = ">" if i == current_idx else " "
             
-        get_file = lambda i: files[i%len(files)]
-
-        # Find the index of current_sd_file in files list
-        current_file_idx = self.state.selected_file_idx
-        if self.audio.current_sd_file:
-            try:
-                current_file_idx = files.index(self.audio.current_sd_file)
-            except ValueError:
-                # If current_file is not in the list, use selected_file_idx
-                pass
-
-        # Show currently playing info at the top
-        if self.audio.current_sd_file and self.audio.is_playing():
-            self.display.buffer.draw_text(0, y-12, f"Playing: {self.audio.current_sd_file.name}")
-
-        for i in range(current_file_idx - 1, current_file_idx + 4):
-            file = get_file(i)
-            highlight = i == current_file_idx
-            
-            # Show if this is the currently playing file
-            is_playing = (file == self.audio.current_sd_file and self.audio.is_playing())
-            play_indicator = "▶ " if is_playing else ""
-
-            name = f"[{file.name}]" if file.is_dir and not file.is_special else file.name
-            self.display.buffer.draw_text(0, y, (">" if highlight else " ") + play_indicator + name)
-            y += 10
+            # Add play indicator if this is the currently playing file
+            if (self.audio.current_sd_file and self.audio.current_sd_file == file and 
+                self.audio.source == AudioSource.SD_CARD):
+                prefix = "▶"
+                
+            name = file.name
+            if len(name) > 19:
+                name = name[:16] + "..."
+                
+            self.display.write_line(line, f"{prefix}{name}")
+            line += 1
 
     def render_standby_clock(self):
         """Render large centered clock for standby mode"""
@@ -432,7 +452,7 @@ class UI:
     def select_next_file(self):
         """Select next file in browser"""
         files = self.audio.get_current_files()
-        if not files:
+        if not files or len(files) == 0:
             return
             
         # Find current file index
@@ -442,6 +462,10 @@ class UI:
                 current_idx = files.index(self.audio.current_file)
             except ValueError:
                 pass
+                
+        # Make sure current_idx is valid
+        if current_idx >= len(files):
+            current_idx = 0
                 
         # Update to next file
         next_idx = (current_idx + 1) % len(files)
@@ -451,7 +475,7 @@ class UI:
     def select_prev_file(self):
         """Select previous file in browser"""
         files = self.audio.get_current_files()
-        if not files:
+        if not files or len(files) == 0:
             return
             
         # Find current file index
@@ -462,36 +486,52 @@ class UI:
             except ValueError:
                 pass
                 
+        # Make sure current_idx is valid
+        if current_idx >= len(files):
+            current_idx = 0
+                
         # Update to previous file
         prev_idx = (current_idx - 1) % len(files)
         self.state.selected_file_idx = prev_idx
         self.audio.current_file = files[prev_idx]
 
     def select_file(self):
-        """Select current file in browser"""
+        """Select current file in USB browser"""
         files = self.audio.get_current_files()
-        if not files:
+        if not files or len(files) == 0:
+            print("No USB files available")
             return
 
         # Get current file based on index
         current_idx = self.state.selected_file_idx
+        if current_idx >= len(files):
+            print(f"Warning: selected_file_idx {current_idx} out of range, resetting to 0")
+            current_idx = 0
+            self.state.selected_file_idx = 0
+            
         if self.audio.current_file:
             try:
                 current_idx = files.index(self.audio.current_file)
             except ValueError:
+                print(f"Warning: current_file not found in files list")
                 pass
                 
+        print(f"Selecting USB file at index {current_idx} of {len(files)} files")
         file = files[current_idx]
         if self.audio.navigate_to(file):
-            self.state.selected_file_idx = 1
-
-        if not file.is_dir:
-            self.state.mode = UIMode.NORMAL
+            # Reset selection to first item when navigating to a new directory
+            self.state.selected_file_idx = 0
+            print(f"Navigated to directory: {file.path}")
+        else:
+            print(f"Selected file: {file.path}")
+            
+        # Keep the USB_BROWSER mode even when playing a file
+        # This allows the user to see what's playing and select other files
 
     def select_next_sd_file(self):
         """Select next file in SD card browser"""
         files = self.audio.get_sd_card_files()
-        if not files:
+        if not files or len(files) == 0:
             return
             
         # Find current file index
@@ -501,6 +541,10 @@ class UI:
                 current_idx = files.index(self.audio.current_sd_file)
             except ValueError:
                 pass
+                
+        # Make sure current_idx is valid
+        if current_idx >= len(files):
+            current_idx = 0
                 
         # Update to next file
         next_idx = (current_idx + 1) % len(files)
@@ -510,7 +554,7 @@ class UI:
     def select_prev_sd_file(self):
         """Select previous file in SD card browser"""
         files = self.audio.get_sd_card_files()
-        if not files:
+        if not files or len(files) == 0:
             return
             
         # Find current file index
@@ -521,6 +565,10 @@ class UI:
             except ValueError:
                 pass
                 
+        # Make sure current_idx is valid
+        if current_idx >= len(files):
+            current_idx = 0
+                
         # Update to previous file
         prev_idx = (current_idx - 1) % len(files)
         self.state.selected_file_idx = prev_idx
@@ -529,20 +577,32 @@ class UI:
     def select_sd_file(self):
         """Select current file in SD card browser"""
         files = self.audio.get_sd_card_files()
-        if not files:
+        if not files or len(files) == 0:
+            print("No SD card files available")
             return
 
         # Get current file based on index
         current_idx = self.state.selected_file_idx
+        if current_idx >= len(files):
+            print(f"Warning: selected_file_idx {current_idx} out of range, resetting to 0")
+            current_idx = 0
+            self.state.selected_file_idx = 0
+            
         if self.audio.current_sd_file:
             try:
                 current_idx = files.index(self.audio.current_sd_file)
             except ValueError:
+                print(f"Warning: current_sd_file not found in files list")
                 pass
                 
+        print(f"Selecting SD file at index {current_idx} of {len(files)} files")
         file = files[current_idx]
         if self.audio.navigate_to_sd_card(file):
-            self.state.selected_file_idx = 1
+            # Reset selection to first item when navigating to a new directory
+            self.state.selected_file_idx = 0
+            print(f"Navigated to directory: {file.path}")
+        else:
+            print(f"Selected file: {file.path}")
             
         # Keep the SD_CARD_BROWSER mode even when playing a file
         # This allows the user to see what's playing and select other files
