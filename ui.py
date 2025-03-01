@@ -251,6 +251,10 @@ class UI:
             self.display.buffer.draw_text(0, y, "No files found")
             return
 
+        # Ensure we have at least one file to prevent modulo by zero error
+        if len(files) == 0:
+            return
+            
         get_file = lambda i: files[i%len(files)]
 
         # Find the index of current_sd_file in files list
@@ -405,6 +409,10 @@ class UI:
             else:
                 self.hardware_out.set_amp_enable(True)
         elif button == "source" and not self.state.standby:
+            # Stop current playback when changing sources
+            self.audio.stop()
+            
+            # Change to next source
             self.state.next_source()
         elif button == "menu" and not self.state.standby:
             if self.state.mode == UIMode.MENU:

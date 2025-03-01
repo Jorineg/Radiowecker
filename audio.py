@@ -274,10 +274,27 @@ class AudioManager:
         self.command_queue.put(AudioCommand(AudioCommandType.PLAY_STATION, station))
 
     def play_file(self, file: AudioFile):
+        """Play a file"""
+        # Stop any current playback
+        if self.player and VLC_AVAILABLE:
+            self.player.stop()
+            
+        if VLC_AVAILABLE:
+            # Create a playlist starting from this file
+            if self._create_playlist_from_file(file):
+                self.list_player.set_media_list(self.media_list)
+                self.list_player.play()
+                return
+                
+        # Fallback to regular file playing
         self.command_queue.put(AudioCommand(AudioCommandType.PLAY_FILE, file))
 
     def play_sd_card_file(self, file: AudioFile):
         """Play a file from the SD card"""
+        # Stop any current playback
+        if self.player and VLC_AVAILABLE:
+            self.player.stop()
+            
         self.current_sd_file = file
         
         if VLC_AVAILABLE:
