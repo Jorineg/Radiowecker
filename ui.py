@@ -234,12 +234,12 @@ class UI:
             self.state.selected_file_idx = 0
 
         # Calculate which files to display
-        start_idx = max(0, current_idx - 2)
-        end_idx = min(len(files), start_idx + 5)
+        start_idx = max(0, current_idx - 1)
+        end_idx = min(len(files), start_idx + 4)
         
-        # Adjust start_idx if we have fewer than 5 files to display
-        if end_idx - start_idx < 5:
-            start_idx = max(0, end_idx - 5)
+        # Adjust start_idx if we have fewer than 4 files to display
+        if end_idx - start_idx < 4:
+            start_idx = max(0, end_idx - 4)
         
         # Display files
         line = 0
@@ -280,12 +280,12 @@ class UI:
             self.state.selected_file_idx = 0
 
         # Calculate which files to display
-        start_idx = max(0, current_idx - 2)
-        end_idx = min(len(files), start_idx + 5)
+        start_idx = max(0, current_idx - 1)
+        end_idx = min(len(files), start_idx + 4)
         
-        # Adjust start_idx if we have fewer than 5 files to display
-        if end_idx - start_idx < 5:
-            start_idx = max(0, end_idx - 5)
+        # Adjust start_idx if we have fewer than 4 files to display
+        if end_idx - start_idx < 4:
+            start_idx = max(0, end_idx - 4)
         
         # Display files
         line = 0

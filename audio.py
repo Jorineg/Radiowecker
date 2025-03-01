@@ -199,10 +199,10 @@ class AudioManager:
                     if ext in [".mp3", ".wav", ".ogg", ".m4a"]:
                         self.files.append(AudioFile(full_path))
                         has_audio_files = True
-                        
-            # Add current directory only if we have audio files to play
-            if has_audio_files:
-                self.files.append(AudioFile(self.current_dir, is_dir=True, name=THIS_DIR))
+            
+            # Always add THIS_DIR option regardless of whether there are audio files directly in this directory
+            # We'll check for audio files recursively when playing
+            self.files.append(AudioFile(self.current_dir, is_dir=True, name=THIS_DIR))
                 
         except PermissionError:
             print(f"Permission denied: {self.current_dir}")
@@ -256,10 +256,10 @@ class AudioManager:
                     if ext in [".mp3", ".wav", ".ogg", ".m4a"]:
                         self.sd_card_files.append(AudioFile(full_path))
                         has_audio_files = True
-                    
-            # Add current directory only if we have audio files to play
-            if has_audio_files:
-                self.sd_card_files.append(AudioFile(self.sd_card_dir, is_dir=True, name=THIS_DIR))
+            
+            # Always add THIS_DIR option regardless of whether there are audio files directly in this directory
+            # We'll check for audio files recursively when playing
+            self.sd_card_files.append(AudioFile(self.sd_card_dir, is_dir=True, name=THIS_DIR))
             
         except PermissionError:
             print(f"Permission denied: {self.sd_card_dir}")
@@ -275,6 +275,185 @@ class AudioManager:
         if not self.sd_card_files:
             print("Warning: Empty SD card files list after scanning, adding dummy entry")
             self.sd_card_files.append(AudioFile("/", is_dir=True, name="Empty directory"))
+
+    def _find_audio_files_recursively(self, directory, max_files=100):
+        """Find all audio files recursively in a directory and its subdirectories"""
+        audio_files = []
+        
+        try:
+            for root, dirs, files in os.walk(directory):
+                for file in files:
+                    if len(audio_files) >= max_files:
+                        return audio_files
+                        
+                    ext = os.path.splitext(file)[1].lower()
+                    if ext in [".mp3", ".wav", ".ogg", ".m4a"]:
+                        full_path = os.path.join(root, file)
+                        audio_files.append(AudioFile(full_path))
+        except Exception as e:
+            print(f"Error finding audio files recursively: {e}")
+            
+        return audio_files
+
+    def _create_playlist_from_file(self, start_file: AudioFile):
+        """Create a playlist starting from the given file, excluding directories and special files"""
+        # Clear existing media list
+        self.media_list.lock()
+        while self.media_list.count() > 0:
+            self.media_list.remove_index(0)
+        self.media_list.unlock()  # Unlock before early returns to prevent deadlocks
+        
+        # If THIS_DIR is selected, create a playlist of all files in the directory and subdirectories
+        if start_file.is_special and start_file.name == THIS_DIR:
+            # Find all audio files recursively
+            all_files = self._find_audio_files_recursively(self.current_dir, max_files=100)
+            
+            if all_files:
+                # Shuffle the files
+                import random
+                random.shuffle(all_files)
+                
+                # Take the first 20 files (or fewer if less than 20 were found)
+                playlist_files = all_files[:20]
+                
+                # Add all files to media list
+                self.media_list.lock()
+                for file in playlist_files:
+                    media = self.instance.media_new(FILE_PATH_PREFIX + file.path)
+                    self.media_list.add_media(media)
+                
+                self.media_list.unlock()
+                return True
+            else:
+                # Fallback to regular directory playback if no files found recursively
+                playable_files = [f for f in self.files if not f.is_dir and not f.is_special]
+                
+                if playable_files:
+                    # Add all files to media list
+                    self.media_list.lock()
+                    for file in playable_files:
+                        media = self.instance.media_new(FILE_PATH_PREFIX + file.path)
+                        self.media_list.add_media(media)
+                    
+                    self.media_list.unlock()
+                    return True
+                else:
+                    return False
+                
+        # Find all playable files (not directories or special files)
+        playable_files = [f for f in self.files if not f.is_dir and not f.is_special]
+
+        if not playable_files:
+            return False
+
+        # If start_file is a directory, start from first file in that directory
+        if start_file.is_dir:
+            # Scan the directory
+            old_dir = self.current_dir
+            self.scan_directory(start_file.path)
+            playable_files = [f for f in self.files if not f.is_dir and not f.is_special]
+            if not playable_files:
+                self.scan_directory(old_dir)
+                return False
+            start_file = playable_files[0]
+
+        # Find the start index
+        try:
+            start_idx = playable_files.index(start_file)
+        except ValueError:
+            start_idx = 0
+
+        # Create the playlist starting from start_file
+        playlist_order = playable_files[start_idx:] + playable_files[:start_idx]
+
+        # Add files to media list
+        self.media_list.lock()
+        for file in playlist_order:
+            media = self.instance.media_new(FILE_PATH_PREFIX + file.path)
+            self.media_list.add_media(media)
+
+        self.media_list.unlock()
+        return True
+
+    def _create_sd_card_playlist_from_file(self, start_file: AudioFile):
+        """Create a playlist from SD card files starting from the given file"""
+        # Clear existing media list
+        self.media_list.lock()
+        while self.media_list.count() > 0:
+            self.media_list.remove_index(0)
+        self.media_list.unlock()  # Unlock before early returns to prevent deadlocks
+
+        # If THIS_DIR is selected, create a playlist of all files in the directory and subdirectories
+        if start_file.is_special and start_file.name == THIS_DIR:
+            # Find all audio files recursively
+            all_files = self._find_audio_files_recursively(self.sd_card_dir, max_files=100)
+            
+            if all_files:
+                # Shuffle the files
+                import random
+                random.shuffle(all_files)
+                
+                # Take the first 20 files (or fewer if less than 20 were found)
+                playlist_files = all_files[:20]
+                
+                # Add all files to media list
+                self.media_list.lock()
+                for file in playlist_files:
+                    media = self.instance.media_new(FILE_PATH_PREFIX + file.path)
+                    self.media_list.add_media(media)
+                
+                self.media_list.unlock()
+                return True
+            else:
+                # Fallback to regular directory playback if no files found recursively
+                playable_files = [f for f in self.sd_card_files if not f.is_dir and not f.is_special]
+                
+                if playable_files:
+                    # Add all files to media list
+                    self.media_list.lock()
+                    for file in playable_files:
+                        media = self.instance.media_new(FILE_PATH_PREFIX + file.path)
+                        self.media_list.add_media(media)
+                    
+                    self.media_list.unlock()
+                    return True
+                else:
+                    return False
+        
+        # Find all playable files (not directories or special files)
+        playable_files = [f for f in self.sd_card_files if not f.is_dir and not f.is_special]
+
+        if not playable_files:
+            return False
+
+        # If start_file is a directory, start from first file in that directory
+        if start_file.is_dir and not start_file.is_special:
+            # Scan the directory
+            old_dir = self.sd_card_dir
+            self.scan_sd_card_directory(start_file.path)
+            playable_files = [f for f in self.sd_card_files if not f.is_dir and not f.is_special]
+            if not playable_files:
+                self.scan_sd_card_directory(old_dir)
+                return False
+            start_file = playable_files[0]
+
+        # Find the start index
+        try:
+            start_idx = playable_files.index(start_file)
+        except ValueError:
+            start_idx = 0
+
+        # Create the playlist starting from start_file
+        playlist_order = playable_files[start_idx:] + playable_files[:start_idx]
+
+        # Add files to media list
+        self.media_list.lock()
+        for file in playlist_order:
+            media = self.instance.media_new(FILE_PATH_PREFIX + file.path)
+            self.media_list.add_media(media)
+
+        self.media_list.unlock()
+        return True
 
     def process_commands(self):
         """Process any pending audio commands - should be called from main thread"""
@@ -448,126 +627,6 @@ class AudioManager:
                 self.player.pause()
             else:
                 self.player.play()
-
-    def _create_playlist_from_file(self, start_file: AudioFile):
-        """Create a playlist starting from the given file, excluding directories and special files"""
-        # Clear existing media list
-        self.media_list.lock()
-        while self.media_list.count() > 0:
-            self.media_list.remove_index(0)
-        self.media_list.unlock()  # Unlock before early returns to prevent deadlocks
-        
-        # If THIS_DIR is selected, start from first file in current directory
-        if start_file.is_special and start_file.name == THIS_DIR:
-            # Get all playable files in current directory
-            playable_files = [f for f in self.files if not f.is_dir and not f.is_special]
-            
-            if playable_files:
-                # Add all files to media list
-                self.media_list.lock()
-                for file in playable_files:
-                    media = self.instance.media_new(FILE_PATH_PREFIX + file.path)
-                    self.media_list.add_media(media)
-                
-                self.media_list.unlock()
-                return True
-            else:
-                return False
-                
-        # Find all playable files (not directories or special files)
-        playable_files = [f for f in self.files if not f.is_dir and not f.is_special]
-
-        if not playable_files:
-            return False
-
-        # If start_file is a directory, start from first file in that directory
-        if start_file.is_dir:
-            # Scan the directory
-            old_dir = self.current_dir
-            self.scan_directory(start_file.path)
-            playable_files = [f for f in self.files if not f.is_dir and not f.is_special]
-            if not playable_files:
-                self.scan_directory(old_dir)
-                return False
-            start_file = playable_files[0]
-
-        # Find the start index
-        try:
-            start_idx = playable_files.index(start_file)
-        except ValueError:
-            start_idx = 0
-
-        # Create the playlist starting from start_file
-        playlist_order = playable_files[start_idx:] + playable_files[:start_idx]
-
-        # Add files to media list
-        self.media_list.lock()
-        for file in playlist_order:
-            media = self.instance.media_new(FILE_PATH_PREFIX + file.path)
-            self.media_list.add_media(media)
-
-        self.media_list.unlock()
-        return True
-
-    def _create_sd_card_playlist_from_file(self, start_file: AudioFile):
-        """Create a playlist from SD card files starting from the given file"""
-        # Clear existing media list
-        self.media_list.lock()
-        while self.media_list.count() > 0:
-            self.media_list.remove_index(0)
-        self.media_list.unlock()  # Unlock before early returns to prevent deadlocks
-
-        # If THIS_DIR is selected, start from first file in current directory
-        if start_file.is_special and start_file.name == THIS_DIR:
-            # Get all playable files in current directory
-            playable_files = [f for f in self.sd_card_files if not f.is_dir and not f.is_special]
-            
-            if playable_files:
-                # Add all files to media list
-                self.media_list.lock()
-                for file in playable_files:
-                    media = self.instance.media_new(FILE_PATH_PREFIX + file.path)
-                    self.media_list.add_media(media)
-                
-                self.media_list.unlock()
-                return True
-            else:
-                return False
-        
-        # Find all playable files (not directories or special files)
-        playable_files = [f for f in self.sd_card_files if not f.is_dir and not f.is_special]
-
-        if not playable_files:
-            return False
-
-        # If start_file is a directory, start from first file in that directory
-        if start_file.is_dir and not start_file.is_special:
-            # Scan the directory
-            old_dir = self.sd_card_dir
-            self.scan_sd_card_directory(start_file.path)
-            playable_files = [f for f in self.sd_card_files if not f.is_dir and not f.is_special]
-            if not playable_files:
-                self.scan_sd_card_directory(old_dir)
-                return False
-            start_file = playable_files[0]
-
-        # Find the start index
-        try:
-            start_idx = playable_files.index(start_file)
-        except ValueError:
-            start_idx = 0
-
-        # Create the playlist starting from start_file
-        playlist_order = playable_files[start_idx:] + playable_files[:start_idx]
-
-        # Add files to media list
-        self.media_list.lock()
-        for file in playlist_order:
-            media = self.instance.media_new(FILE_PATH_PREFIX + file.path)
-            self.media_list.add_media(media)
-
-        self.media_list.unlock()
-        return True
 
     def _setup_sd_card_partition(self):
         """Check if the SD card partition is mounted"""
