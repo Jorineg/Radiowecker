@@ -51,6 +51,12 @@ class AudioFile:
         self.is_dir = is_dir
 
 
+class AudioSource(Enum):
+    USB = auto()
+    SD_CARD = auto()
+    RADIO = auto()
+
+
 class AudioCommandType(Enum):
     PLAY_STATION = auto()
     PLAY_FILE = auto()
@@ -144,6 +150,8 @@ class AudioManager:
         # Scan SD card directory
         self.scan_sd_card_directory()
         self.current_sd_file = self.sd_card_files[0] if len(self.sd_card_files) > 0 else None
+
+        self.source = AudioSource.RADIO
 
     def load_stations(self, filename: str = "stations.csv"):
         """Load internet radio stations from CSV file"""
@@ -298,6 +306,11 @@ class AudioManager:
         if self.player and VLC_AVAILABLE:
             self.player.stop()
             
+        self.current_file = file
+        self.current_station = None
+        self.current_sd_file = None  # Clear SD card file when playing USB file
+        self.source = AudioSource.USB
+        
         if VLC_AVAILABLE:
             # Create a playlist starting from this file
             if self._create_playlist_from_file(file):
@@ -315,6 +328,9 @@ class AudioManager:
             self.player.stop()
             
         self.current_sd_file = file
+        self.current_station = None
+        self.current_file = None  # Clear USB file when playing SD card file
+        self.source = AudioSource.SD_CARD
         
         if VLC_AVAILABLE:
             # Create a playlist starting from this file
@@ -382,6 +398,8 @@ class AudioManager:
 
         self.current_station = station
         self.current_file = None
+        self.current_sd_file = None
+        self.source = AudioSource.RADIO
 
         try:
             # Stop any existing playback
@@ -414,6 +432,15 @@ class AudioManager:
     def _stop(self):
         if self.player:
             self.player.stop()
+        if self.list_player:
+            self.list_player.stop()
+            
+        # Clear the media list to ensure we don't keep playing the old playlist
+        if self.media_list:
+            self.media_list.lock()
+            while self.media_list.count() > 0:
+                self.media_list.remove_index(0)
+            self.media_list.unlock()
 
     def _toggle_pause(self):
         if self.player:
@@ -428,7 +455,8 @@ class AudioManager:
         self.media_list.lock()
         while self.media_list.count() > 0:
             self.media_list.remove_index(0)
-
+        self.media_list.unlock()  # Unlock before early returns to prevent deadlocks
+        
         # If THIS_DIR is selected, start from first file in current directory
         if start_file.is_special and start_file.name == THIS_DIR:
             # Get all playable files in current directory
@@ -436,6 +464,7 @@ class AudioManager:
             
             if playable_files:
                 # Add all files to media list
+                self.media_list.lock()
                 for file in playable_files:
                     media = self.instance.media_new(FILE_PATH_PREFIX + file.path)
                     self.media_list.add_media(media)
@@ -443,14 +472,12 @@ class AudioManager:
                 self.media_list.unlock()
                 return True
             else:
-                self.media_list.unlock()
                 return False
                 
         # Find all playable files (not directories or special files)
         playable_files = [f for f in self.files if not f.is_dir and not f.is_special]
 
         if not playable_files:
-            self.media_list.unlock()
             return False
 
         # If start_file is a directory, start from first file in that directory
@@ -461,7 +488,6 @@ class AudioManager:
             playable_files = [f for f in self.files if not f.is_dir and not f.is_special]
             if not playable_files:
                 self.scan_directory(old_dir)
-                self.media_list.unlock()
                 return False
             start_file = playable_files[0]
 
@@ -475,6 +501,7 @@ class AudioManager:
         playlist_order = playable_files[start_idx:] + playable_files[:start_idx]
 
         # Add files to media list
+        self.media_list.lock()
         for file in playlist_order:
             media = self.instance.media_new(FILE_PATH_PREFIX + file.path)
             self.media_list.add_media(media)
@@ -488,6 +515,7 @@ class AudioManager:
         self.media_list.lock()
         while self.media_list.count() > 0:
             self.media_list.remove_index(0)
+        self.media_list.unlock()  # Unlock before early returns to prevent deadlocks
 
         # If THIS_DIR is selected, start from first file in current directory
         if start_file.is_special and start_file.name == THIS_DIR:
@@ -496,6 +524,7 @@ class AudioManager:
             
             if playable_files:
                 # Add all files to media list
+                self.media_list.lock()
                 for file in playable_files:
                     media = self.instance.media_new(FILE_PATH_PREFIX + file.path)
                     self.media_list.add_media(media)
@@ -503,14 +532,12 @@ class AudioManager:
                 self.media_list.unlock()
                 return True
             else:
-                self.media_list.unlock()
                 return False
         
         # Find all playable files (not directories or special files)
         playable_files = [f for f in self.sd_card_files if not f.is_dir and not f.is_special]
 
         if not playable_files:
-            self.media_list.unlock()
             return False
 
         # If start_file is a directory, start from first file in that directory
@@ -521,7 +548,6 @@ class AudioManager:
             playable_files = [f for f in self.sd_card_files if not f.is_dir and not f.is_special]
             if not playable_files:
                 self.scan_sd_card_directory(old_dir)
-                self.media_list.unlock()
                 return False
             start_file = playable_files[0]
 
@@ -535,6 +561,7 @@ class AudioManager:
         playlist_order = playable_files[start_idx:] + playable_files[:start_idx]
 
         # Add files to media list
+        self.media_list.lock()
         for file in playlist_order:
             media = self.instance.media_new(FILE_PATH_PREFIX + file.path)
             self.media_list.add_media(media)
@@ -644,13 +671,15 @@ class AudioManager:
 
     def get_current_info(self) -> Tuple[str, str]:
         """Get current playing info (source, name)"""
-        if self.current_station:
+        if self.source == AudioSource.RADIO and self.current_station:
             return "RADIO", self.current_station.name
-        elif self.current_file:
+        elif self.source == AudioSource.USB and self.current_file:
             return "USB", self.current_file.name
-        elif self.current_sd_file:
-            return "SD CARD", self.current_sd_file.name
-        return "", ""
+        elif self.source == AudioSource.SD_CARD and self.current_sd_file:
+            return "SD_CARD", self.current_sd_file.name
+        else:
+            # Default to radio if nothing is set
+            return "RADIO", ""
 
     def set_volume(self, volume: int):
         """Set volume (0-100)"""
