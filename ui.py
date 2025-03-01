@@ -273,7 +273,7 @@ class UI:
         """Handle button and encoder events"""
         current_time = time.time()
 
-        if button.startswith(("volume_", "control_")):
+        if button.startswith("volume_"):
             if pressed:
                 if button == "volume_cw":
                     self.state.volume = self.state.volume_control.volume_up(2)
@@ -281,12 +281,64 @@ class UI:
                 elif button == "volume_ccw":
                     self.state.volume = self.state.volume_control.volume_down(2)
                     self.state.volume_overlay_timeout = current_time + self.VOLUME_OVERLAY_DURATION
-                elif button == "control_cw":
-                    # self.audio.next_station()
+                elif button == "volume_press":
+                    # Toggle mute functionality could be added here
                     pass
-                elif button == "control_ccw":
-                    # self.audio.previous_station()
-                    pass
+            return
+        elif button.startswith("control_"):
+            if pressed:
+                current_source = self.state.get_current_source()
+                
+                if current_source == "INTERNET":
+                    # Internet radio station navigation
+                    if button == "control_cw":
+                        # Next station
+                        stations = self.audio.get_stations()
+                        if stations:
+                            current_idx = 0
+                            if self.audio.current_station:
+                                try:
+                                    current_idx = stations.index(self.audio.current_station)
+                                except ValueError:
+                                    pass
+                            next_idx = (current_idx + 1) % len(stations)
+                            self.audio.play_station(stations[next_idx])
+                    elif button == "control_ccw":
+                        # Previous station
+                        stations = self.audio.get_stations()
+                        if stations:
+                            current_idx = 0
+                            if self.audio.current_station:
+                                try:
+                                    current_idx = stations.index(self.audio.current_station)
+                                except ValueError:
+                                    pass
+                            prev_idx = (current_idx - 1) % len(stations)
+                            self.audio.play_station(stations[prev_idx])
+                    elif button == "control_press":
+                        # Toggle play/pause for current station
+                        self.audio.toggle_pause()
+                
+                elif current_source == "USB":
+                    # USB file navigation
+                    if button == "control_cw":
+                        self.select_next_file()
+                    elif button == "control_ccw":
+                        self.select_prev_file()
+                    elif button == "control_press":
+                        self.select_file()
+                
+                elif current_source == "BLUETOOTH":
+                    # Bluetooth controls
+                    if button == "control_cw":
+                        # Next track (if supported by connected device)
+                        pass
+                    elif button == "control_ccw":
+                        # Previous track (if supported by connected device)
+                        pass
+                    elif button == "control_press":
+                        # Play/pause toggle
+                        self.audio.toggle_pause()
             return
 
         if not pressed:
