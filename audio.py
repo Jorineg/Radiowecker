@@ -410,6 +410,23 @@ class AudioManager:
         while self.media_list.count() > 0:
             self.media_list.remove_index(0)
 
+        # If THIS_DIR is selected, start from first file in current directory
+        if start_file.is_special and start_file.name == THIS_DIR:
+            # Get all playable files in current directory
+            playable_files = [f for f in self.files if not f.is_dir and not f.is_special]
+            
+            if playable_files:
+                # Add all files to media list
+                for file in playable_files:
+                    media = self.instance.media_new(FILE_PATH_PREFIX + file.path)
+                    self.media_list.add_media(media)
+                
+                self.media_list.unlock()
+                return True
+            else:
+                self.media_list.unlock()
+                return False
+                
         # Find all playable files (not directories or special files)
         playable_files = [f for f in self.files if not f.is_dir and not f.is_special]
 
@@ -548,6 +565,10 @@ class AudioManager:
             parent = str(Path(self.current_dir).parent)
             self.scan_directory(parent)
             return True
+        elif audio_file.is_special and audio_file.name == THIS_DIR:
+            # Play all files in current directory
+            self.play_file(audio_file)
+            return False
         else:
             self.play_file(audio_file)
             return False
