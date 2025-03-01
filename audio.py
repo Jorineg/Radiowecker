@@ -322,8 +322,15 @@ class AudioManager:
     def _play_media(self, file: AudioFile, is_sd_card: bool = False):
         """Common code for playing a file from USB or SD card"""
         # Stop any current playback
-        if self.player and VLC_AVAILABLE:
-            self.player.stop()
+        if VLC_AVAILABLE:
+            # Stop both the player and list_player to ensure any current playlist is stopped
+            if self.player:
+                self.player.stop()
+            if self.list_player:
+                self.list_player.stop()
+                
+            # Clear the media list to ensure we don't keep playing the old playlist
+            self._clear_media_list()
             
         # Update source tracking variables
         if is_sd_card:
@@ -546,6 +553,14 @@ class AudioManager:
                 return True
                 
             elif audio_file.is_special and audio_file.name == THIS_DIR:
+                # Explicitly stop any current playback before playing all files in current directory
+                if VLC_AVAILABLE:
+                    if self.player:
+                        self.player.stop()
+                    if self.list_player:
+                        self.list_player.stop()
+                    self._clear_media_list()
+                
                 # Play all files in current directory
                 if is_sd_card:
                     self.play_sd_card_file(audio_file)
@@ -554,6 +569,14 @@ class AudioManager:
                 return False
                 
             else:
+                # Explicitly stop any current playback before playing the file
+                if VLC_AVAILABLE:
+                    if self.player:
+                        self.player.stop()
+                    if self.list_player:
+                        self.list_player.stop()
+                    self._clear_media_list()
+                
                 # Play the file
                 if is_sd_card:
                     self.play_sd_card_file(audio_file)
