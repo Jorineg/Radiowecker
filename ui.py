@@ -36,6 +36,9 @@ class UIState:
         # Status indicators
         self.alarm_mode = 0
         self.is_playing = False
+        
+        # File browser index
+        self.selected_file_idx = 1
 
         # Button states
         self.button_states = {
@@ -45,6 +48,7 @@ class UIState:
             "alarm1": False,
             "alarm2": False
         }
+
 
     def get_current_source(self) -> str:
         """Get name of current source"""
@@ -212,9 +216,18 @@ class UI:
 
         get_file = lambda i: files[i%len(files)]
 
-        for i in range(self.state.selected_file_idx - 1, self.state.selected_file_idx + 4):
+        # Find the index of current_file in files list
+        current_file_idx = self.state.selected_file_idx
+        if self.audio.current_file:
+            try:
+                current_file_idx = files.index(self.audio.current_file)
+            except ValueError:
+                # If current_file is not in the list, use selected_file_idx
+                pass
+
+        for i in range(current_file_idx - 1, current_file_idx + 4):
             file = get_file(i)
-            highlight = i == self.state.selected_file_idx
+            highlight = i == current_file_idx
 
             name = f"[{file.name}]" if file.is_dir and not file.is_special else file.name
             self.display.buffer.draw_text(0, y, (">" if highlight else " ") + name)
@@ -307,14 +320,38 @@ class UI:
         files = self.audio.get_current_files()
         if not files:
             return
-        self.state.selected_file_idx = (self.state.selected_file_idx + 1) % len(files)
+            
+        # Find current file index
+        current_idx = self.state.selected_file_idx
+        if self.audio.current_file:
+            try:
+                current_idx = files.index(self.audio.current_file)
+            except ValueError:
+                pass
+                
+        # Update to next file
+        next_idx = (current_idx + 1) % len(files)
+        self.state.selected_file_idx = next_idx
+        self.audio.current_file = files[next_idx]
 
     def select_prev_file(self):
         """Select previous file in browser"""
         files = self.audio.get_current_files()
         if not files:
             return
-        self.state.selected_file_idx = (self.state.selected_file_idx - 1) % len(files)
+            
+        # Find current file index
+        current_idx = self.state.selected_file_idx
+        if self.audio.current_file:
+            try:
+                current_idx = files.index(self.audio.current_file)
+            except ValueError:
+                pass
+                
+        # Update to previous file
+        prev_idx = (current_idx - 1) % len(files)
+        self.state.selected_file_idx = prev_idx
+        self.audio.current_file = files[prev_idx]
 
     def select_file(self):
         """Select current file in browser"""
@@ -322,7 +359,15 @@ class UI:
         if not files:
             return
 
-        file = files[self.state.selected_file_idx]
+        # Get current file based on index
+        current_idx = self.state.selected_file_idx
+        if self.audio.current_file:
+            try:
+                current_idx = files.index(self.audio.current_file)
+            except ValueError:
+                pass
+                
+        file = files[current_idx]
         if self.audio.navigate_to(file):
             self.state.selected_file_idx = 1
 
