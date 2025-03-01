@@ -12,7 +12,7 @@ import subprocess
 import time
 
 
-BACK = "<zurück>"
+BACK = "<zurück>"
 THIS_DIR = "<dieser Ordner>"
 
 # FILE_PATH_PREFIX = "D:/"
@@ -33,10 +33,10 @@ except ImportError:
     RPI_HARDWARE = False
 
 
-class AudioStation:
-    def __init__(self, name: str, url: str):
-        self.name = name
-        self.url = url
+class AudioSource(Enum):
+    USB = auto()
+    SD_CARD = auto()
+    RADIO = auto()
 
 
 class AudioFile:
@@ -51,10 +51,10 @@ class AudioFile:
         self.is_dir = is_dir
 
 
-class AudioSource(Enum):
-    USB = auto()
-    SD_CARD = auto()
-    RADIO = auto()
+class AudioStation:
+    def __init__(self, name: str, url: str):
+        self.name = name
+        self.url = url
 
 
 class AudioCommandType(Enum):

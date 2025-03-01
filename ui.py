@@ -4,6 +4,7 @@ import time
 from typing import List, Tuple, Optional
 from enum import Enum
 from volume_control import VolumeControl
+from audio import AudioSource
 
 
 class UIMode(Enum):
