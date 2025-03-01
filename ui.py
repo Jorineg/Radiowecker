@@ -262,12 +262,20 @@ class UI:
                 # If current_file is not in the list, use selected_file_idx
                 pass
 
+        # Show currently playing info at the top
+        if self.audio.current_sd_file and self.audio.is_playing():
+            self.display.buffer.draw_text(0, y-12, f"Playing: {self.audio.current_sd_file.name}")
+
         for i in range(current_file_idx - 1, current_file_idx + 4):
             file = get_file(i)
             highlight = i == current_file_idx
+            
+            # Show if this is the currently playing file
+            is_playing = (file == self.audio.current_sd_file and self.audio.is_playing())
+            play_indicator = "▶ " if is_playing else ""
 
             name = f"[{file.name}]" if file.is_dir and not file.is_special else file.name
-            self.display.buffer.draw_text(0, y, (">" if highlight else " ") + name)
+            self.display.buffer.draw_text(0, y, (">" if highlight else " ") + play_indicator + name)
             y += 10
 
     def render_standby_clock(self):
@@ -527,6 +535,10 @@ class UI:
         file = files[current_idx]
         if self.audio.navigate_to_sd_card(file):
             self.state.selected_file_idx = 1
+            
+        # Keep the SD_CARD_BROWSER mode even when playing a file
+        # This allows the user to see what's playing and select other files
 
-        if not file.is_dir:
-            self.state.mode = UIMode.NORMAL
+    def show_main_menu(self):
+        """Show main menu"""
+        self.state.mode = UIMode.MENU

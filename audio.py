@@ -279,6 +279,15 @@ class AudioManager:
     def play_sd_card_file(self, file: AudioFile):
         """Play a file from the SD card"""
         self.current_sd_file = file
+        
+        if VLC_AVAILABLE:
+            # Create a playlist starting from this file
+            if self._create_sd_card_playlist_from_file(file):
+                self.list_player.set_media_list(self.media_list)
+                self.list_player.play()
+                return
+                
+        # Fallback to regular file playing
         self.command_queue.put(AudioCommand(AudioCommandType.PLAY_FILE, file))
 
     def stop(self):
@@ -420,6 +429,66 @@ class AudioManager:
         self.media_list.unlock()
         return True
 
+    def _create_sd_card_playlist_from_file(self, start_file: AudioFile):
+        """Create a playlist from SD card files starting from the given file"""
+        # Clear existing media list
+        self.media_list.lock()
+        while self.media_list.count() > 0:
+            self.media_list.remove_index(0)
+
+        # If THIS_DIR is selected, start from first file in current directory
+        if start_file.is_special and start_file.name == THIS_DIR:
+            # Get all playable files in current directory
+            playable_files = [f for f in self.sd_card_files if not f.is_dir and not f.is_special]
+            
+            if playable_files:
+                # Add all files to media list
+                for file in playable_files:
+                    media = self.instance.media_new(FILE_PATH_PREFIX + file.path)
+                    self.media_list.add_media(media)
+                
+                self.media_list.unlock()
+                return True
+            else:
+                self.media_list.unlock()
+                return False
+        
+        # Find all playable files (not directories or special files)
+        playable_files = [f for f in self.sd_card_files if not f.is_dir and not f.is_special]
+
+        if not playable_files:
+            self.media_list.unlock()
+            return False
+
+        # If start_file is a directory, start from first file in that directory
+        if start_file.is_dir and not start_file.is_special:
+            # Scan the directory
+            old_dir = self.sd_card_dir
+            self.scan_sd_card_directory(start_file.path)
+            playable_files = [f for f in self.sd_card_files if not f.is_dir and not f.is_special]
+            if not playable_files:
+                self.scan_sd_card_directory(old_dir)
+                self.media_list.unlock()
+                return False
+            start_file = playable_files[0]
+
+        # Find the start index
+        try:
+            start_idx = playable_files.index(start_file)
+        except ValueError:
+            start_idx = 0
+
+        # Create the playlist starting from start_file
+        playlist_order = playable_files[start_idx:] + playable_files[:start_idx]
+
+        # Add files to media list
+        for file in playlist_order:
+            media = self.instance.media_new(FILE_PATH_PREFIX + file.path)
+            self.media_list.add_media(media)
+
+        self.media_list.unlock()
+        return True
+
     def _setup_sd_card_partition(self):
         """Check if the SD card partition is mounted"""
         if not RPI_HARDWARE:
@@ -476,6 +545,10 @@ class AudioManager:
             parent = str(Path(self.sd_card_dir).parent)
             self.scan_sd_card_directory(parent)
             return True
+        elif audio_file.is_special and audio_file.name == THIS_DIR:
+            # Play all files in current directory
+            self.play_sd_card_file(audio_file)
+            return False
         else:
             self.play_sd_card_file(audio_file)
             return False
