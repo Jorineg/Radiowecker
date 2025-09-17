@@ -74,7 +74,7 @@ class RotaryEncoder:
                 step = (new_idx - old_idx) % 4
 
                 # print(f"old={old_idx}, new={new_idx}, step={step}, tc={self.turn_count}, at={self.accumulated_ticks}, td={time_delta*1000:.1f}ms")
-                print(new_idx)
+                print(position)
 
                 if step == 1:  # Next in sequence = CW
                     self.turn_count += 1
