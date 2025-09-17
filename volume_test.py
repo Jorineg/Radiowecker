@@ -39,8 +39,10 @@ def main():
         # Ticks * 2 für schnellere Änderung
         if ticks > 0:
             vol = volume.volume_up(step=ticks * 2)
+            print("up")
         else:
-            vol = volume.volume_down(step=-ticks * 2)
+            vol = volume.volume_down(step=-ticks * 2)#
+            print("down")
             
         # Update display
         display.buffer.clear()
