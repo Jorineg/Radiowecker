@@ -1,10 +1,2 @@
-numpy
-python-vlc
-RPi.GPIO
-pygame
-pyalsaaudio
-freetype-py
-luma.core
-luma.oled
 smbus2
-
+freetype-py

@@ -21,9 +21,11 @@ echo "Updating package lists..."
 sudo apt-get update
 
 echo "Installing required packages..."
-sudo apt-get install -y git python3 python3-pip python3-venv python3-rpi.gpio python3-luma.core python3-luma.oled \
-    vlc python3-vlc python3-numpy libasound2-plugins \
-    pulseaudio bluetooth bluez bluez-tools bluez-alsa-utils \
+sudo apt-get install -y git python3 python3-pip python3-venv \
+    python3-rpi.gpio python3-luma.core python3-luma.oled \
+    python3-pygame python3-alsaaudio python3-vlc python3-numpy \
+    libopenblas0-pthread liblapack3 libasound2-plugins \
+    vlc pulseaudio bluetooth bluez bluez-tools bluez-alsa-utils \
     pulseaudio-module-bluetooth network-manager
 
 # Clone repository
@@ -39,20 +41,20 @@ cd Radiowecker
 # 1.1 Python environment and dependencies
 print_section "1.1 Python Environment"
 
-echo "Setting up Python virtual environment and installing requirements..."
+echo "Setting up Python virtual environment (with system packages) and installing requirements..."
 
-# Create venv in project directory if not exists
+# Create venv in project directory if not exists, including system site packages
 if [ ! -d ".venv" ]; then
-    python3 -m venv .venv
+    python3 -m venv --system-site-packages .venv
 fi
 
 # Activate venv
 source .venv/bin/activate
 
-# Upgrade pip and install requirements
+# Upgrade pip and install pure-Python requirements
 python -m pip install --upgrade pip
 if [ -f "requirements.txt" ]; then
-    pip install -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt
 else
     echo "requirements.txt not found, skipping pip install"
 fi
