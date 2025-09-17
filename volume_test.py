@@ -33,6 +33,7 @@ def main():
 
     
     def handle_rotation():
+        global pos
         ticks = -pos
         pos = 0
         # Ticks * 2 für schnellere Änderung
