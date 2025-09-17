@@ -69,14 +69,13 @@ def main():
         display.show()
     
 
-    encoder = RotaryEncoder(ROTARY_A, ROTARY_B, pin_factory=PiGPIOFactory())
-    encoder.when_rotated = handle_rotation
+    encoder = RotaryEncoder(ROTARY_A, ROTARY_B, bounce_time=0.001, pin_factory=PiGPIOFactory())
 
     try:
         while True:
             time.sleep(0.01)
+            handle_rotation()
     except KeyboardInterrupt:
-        encoder.when_rotated = None
         GPIO.cleanup()
 
 
