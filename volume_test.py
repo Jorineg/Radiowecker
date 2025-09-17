@@ -84,7 +84,7 @@ class RotaryEncoder:
             if self.accumulated_ticks != 0:
                 self.callback(self.accumulated_ticks)  # Callback mit Anzahl der Ticks
                 self.accumulated_ticks = 0  # Reset
-            time.sleep(10.01)  # 10ms sleep
+            time.sleep(0.01)  # 10ms sleep
             
     def stop(self):
         self._running = False
