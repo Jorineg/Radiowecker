@@ -24,6 +24,7 @@ class RadioWecker:
 
         # Determine if running on Pi or PC
         self.is_pi = RPI_HARDWARE
+        print("RPI_HARDWARE is", RPI_HARDWARE)
 
         # Initialize components
         self.init_components()
