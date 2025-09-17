@@ -17,10 +17,11 @@ try:
     from luma.oled.device import ssd1306
     from PIL import Image
     RPI_HARDWARE = True
+    print("RPI_HARDWARE is True")
 except ImportError:
     import pygame
     RPI_HARDWARE = False
-
+    print("RPI_HARDWARE is False")
 from font_5x8 import FONT_5X8, get_char as get_char_5x8, get_text_width as get_text_width_5x8
 from font_8x16 import FONT_8X16, get_char as get_char_8x16, get_text_width as get_text_width_8x16
 
