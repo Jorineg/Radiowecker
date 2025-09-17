@@ -35,6 +35,7 @@ def main():
     
     def handle_rotation():
         ticks = encoder.steps
+        encoder.steps = 0
         # Ticks * 2 für schnellere Änderung
         if ticks > 0:
             vol = volume.volume_up(step=ticks * 2)
