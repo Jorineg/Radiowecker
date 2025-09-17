@@ -71,6 +71,14 @@ def main():
     encoder = RotaryEncoder(ROTARY_A, ROTARY_B, pin_factory=PiGPIOFactory())
     encoder.when_rotated = handle_rotation
 
+    try:
+        while True:
+            time.sleep(0.01)
+            encoder.update()
+    except KeyboardInterrupt:
+        encoder.when_rotated = None
+        GPIO.cleanup()
+
 
 if __name__ == "__main__":
     main()
