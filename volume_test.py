@@ -40,9 +40,9 @@ class RotaryEncoder:
         self._read_position()
         
         # Start callback thread
-        self.callback_thread = threading.Thread(target=self._callback_thread)
-        self.callback_thread.daemon = True
-        self.callback_thread.start()
+        # self.callback_thread = threading.Thread(target=self._callback_thread)
+        # self.callback_thread.daemon = True
+        # self.callback_thread.start()
         
     def _read_position(self):
         """Read current position in sequence (0-3)"""
@@ -120,7 +120,7 @@ def main():
         display = PygameDisplay(128, 64)
     
     # Initialize volume control
-    volume = VolumeControl()
+    # volume = VolumeControl()
     
     def handle_rotation(ticks):
         # Ticks * 2 für schnellere Änderung
@@ -156,7 +156,9 @@ def main():
         display.show()
     
     # Initialize rotary encoder
-    encoder = RotaryEncoder(ROTARY_A, ROTARY_B, handle_rotation)
+    # encoder = RotaryEncoder(ROTARY_A, ROTARY_B, handle_rotation)
+    encoder = RotaryEncoder(ROTARY_A, ROTARY_B, lambda x: None)
+
     
     try:
         times = np.array([])
