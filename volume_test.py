@@ -67,7 +67,7 @@ class RotaryEncoder:
         # Position changed
         if position != self.last_position:
 
-            if (position == 0 || position == 3) && (self.last_position == 1 || self.last_position == 2):
+            if (position == 0 or position == 3) and (self.last_position == 1 or self.last_position == 2):
                 step = ((position + self.last_position) % 2)*2 - 1
 
                 # print(f"old={self.last_position}, new={position}, step={step}, tc={self.turn_count}, at={self.accumulated_ticks}, td={time_delta*1000:.1f}ms")
