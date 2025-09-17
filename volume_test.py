@@ -71,13 +71,6 @@ def main():
     encoder = RotaryEncoder(ROTARY_A, ROTARY_B, pin_factory=PiGPIOFactory())
     encoder.when_rotated = handle_rotation
 
-            
-    except KeyboardInterrupt:
-        mean_interval = sum(times[1:] - times[:-1]) / len(times[1:])
-        print(f"Mean interval: {mean_interval*1000:.1f}ms")
-        encoder.stop()
-        GPIO.cleanup()
-
 
 if __name__ == "__main__":
     main()
