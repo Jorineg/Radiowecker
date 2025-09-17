@@ -14,6 +14,16 @@ print_section() {
     echo "====================================="
 }
 
+# Append a line to a file only if it's not already present (idempotent)
+ensure_line_in_file() {
+    local line="$1"
+    local file="$2"
+    sudo test -f "$file" || sudo touch "$file"
+    if ! sudo grep -qxF "$line" "$file" 2>/dev/null; then
+        echo "$line" | sudo tee -a "$file" > /dev/null
+    fi
+}
+
 # 1. Initial Setup
 print_section "1. Initial Setup"
 
@@ -26,7 +36,7 @@ sudo apt-get install -y git python3 python3-pip python3-venv \
     python3-pygame python3-alsaaudio python3-vlc python3-numpy \
     libopenblas0-pthread liblapack3 libasound2-plugins \
     vlc pulseaudio bluetooth bluez bluez-tools bluez-alsa-utils \
-    pulseaudio-module-bluetooth network-manager
+    pulseaudio-module-bluetooth network-manager i2c-tools python3-pil
 
 # Clone repository
 echo "Cloning Radiowecker repository..."
@@ -66,25 +76,28 @@ echo "Configuring audio hardware..."
 # Backup original config
 sudo cp /boot/firmware/config.txt /boot/firmware/config.txt.bak
 
-# Add audio configuration
-echo "
-# Audio Configuration
-dtparam=i2s=on
-dtoverlay=iqaudio-dacplus
-dtparam=audio=on
-# I2C Configuration
-dtparam=i2c_arm=on,i2c_arm_baudrate=400000" | sudo tee -a /boot/firmware/config.txt
+# Add audio & I2C configuration (idempotent)
+CONFIG_FILE="/boot/firmware/config.txt"
+ensure_line_in_file "dtparam=i2s=on" "$CONFIG_FILE"
+ensure_line_in_file "dtoverlay=iqaudio-dacplus" "$CONFIG_FILE"
+ensure_line_in_file "dtparam=audio=on" "$CONFIG_FILE"
+ensure_line_in_file "dtparam=i2c_arm=on" "$CONFIG_FILE"
+ensure_line_in_file "dtparam=i2c_arm_baudrate=400000" "$CONFIG_FILE"
 
-# Configure audio modules
-echo "
-# Audio modules
-snd_bcm2835
-snd_soc_bcm2835_i2s
-snd_soc_pcm5102a
-snd_soc_hifiberry_dac" | sudo tee -a /etc/modules
+# Configure kernel modules (idempotent)
+MODULES_FILE="/etc/modules"
+ensure_line_in_file "snd_bcm2835" "$MODULES_FILE"
+ensure_line_in_file "snd_soc_bcm2835_i2s" "$MODULES_FILE"
+ensure_line_in_file "snd_soc_pcm5102a" "$MODULES_FILE"
+ensure_line_in_file "snd_soc_hifiberry_dac" "$MODULES_FILE"
+ensure_line_in_file "i2c-dev" "$MODULES_FILE"
 
 # Add user to audio group
 sudo usermod -a -G audio $USER
+
+# Add user to I2C and GPIO groups for non-root access
+sudo usermod -a -G i2c $USER
+sudo usermod -a -G gpio $USER
 
 # 3. Bluetooth Setup
 print_section "3. Bluetooth Setup"

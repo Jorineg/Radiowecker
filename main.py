@@ -109,6 +109,7 @@ class RadioWecker:
 
     def main_loop(self):
         """Main application loop"""
+        print("Main application loop")
         last_time = time.time()
 
         while self.running:

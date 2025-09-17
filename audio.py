@@ -6,6 +6,7 @@ import threading
 import time
 from typing import List, Tuple, Optional, Dict
 from queue import Queue, Empty
+import subprocess
 
 # Import our modular components
 from audio_types import (
