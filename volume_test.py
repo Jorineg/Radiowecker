@@ -77,7 +77,7 @@ def main():
     for g in (ROTARY_A, ROTARY_B):
         pi.set_mode(g, pigpio.INPUT)
         pi.set_pull_up_down(g, pigpio.PUD_UP)
-        pi.set_glitch_filter(g, 2000)  # debounce
+        # pi.set_glitch_filter(g, 2000)  # debounce
 
 
     def cbf(gpio, level, tick):
