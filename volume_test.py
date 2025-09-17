@@ -2,13 +2,11 @@
 
 import time
 import threading
-import RPi.GPIO as GPIO
 from display import OLEDDisplay, PygameDisplay
 from gpio_pins import ROTARY1_A, ROTARY1_B, ROTARY1_SW
 from volume_control import VolumeControl
 import numpy as np
-from gpiozero import RotaryEncoder
-from gpiozero.pins.pigpio import PiGPIOFactory
+import pigpio
 
 
 # GPIO Pins für Rotary Encoder
@@ -16,10 +14,8 @@ ROTARY_A = ROTARY1_A  # Volume encoder pins
 ROTARY_B = ROTARY1_B
 ROTARY_SW = ROTARY1_SW
 
-last_polling = time.time()
 
-positions = []
-
+pi = pigpio.pi()
 
 
 def main():
@@ -32,10 +28,13 @@ def main():
     
     # Initialize volume control
     volume = VolumeControl()
+
+    pos = 0
+
     
     def handle_rotation():
-        ticks = -encoder.steps
-        encoder.steps = 0
+        ticks = -pos
+        pos = 0
         # Ticks * 2 für schnellere Änderung
         if ticks > 0:
             vol = volume.volume_up(step=ticks * 2)
@@ -69,7 +68,29 @@ def main():
         display.show()
     
 
-    encoder = RotaryEncoder(ROTARY_A, ROTARY_B, pin_factory=PiGPIOFactory())
+
+    for g in (ROTARY_A, ROTARY_B):
+        pi.set_mode(g, pigpio.INPUT)
+        pi.set_pull_up_down(g, pigpio.PUD_UP)
+        # pi.set_glitch_filter(g, 2000)  # debounce
+
+    last = (pi.read(ROTARY_A) << 1) | pi.read(ROTARY_B)
+
+    def cbf(gpio, level, tick):
+        global last, pos
+        s = (pi.read(ROTARY_A) << 1) | pi.read(ROTARY_B)
+        if s != last and s in (0, 3):             # only when A==B
+            prevA = (last >> 1) & 1
+            nowA  = (s    >> 1) & 1
+            if nowA == prevA:
+                pos += 1  # cw (or ccw depending on wiring)
+            else:
+                pos -= 1
+        last = s
+
+    c1 = pi.callback(ROTARY_A, pigpio.EITHER_EDGE, cbf)
+    c2 = pi.callback(ROTARY_B, pigpio.EITHER_EDGE, cbf)
+
     
     while True:
         time.sleep(0.03)
