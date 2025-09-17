@@ -1,0 +1,10 @@
+numpy
+python-vlc
+RPi.GPIO
+pygame
+alsaaudio
+freetype-py
+luma.core
+luma.oled
+smbus2
+

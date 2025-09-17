@@ -21,7 +21,7 @@ echo "Updating package lists..."
 sudo apt-get update
 
 echo "Installing required packages..."
-sudo apt-get install -y git python3-rpi.gpio python3-luma.core python3-luma.oled \
+sudo apt-get install -y git python3 python3-pip python3-venv python3-rpi.gpio python3-luma.core python3-luma.oled \
     vlc python3-vlc python3-numpy libasound2-plugins \
     pulseaudio bluetooth bluez bluez-tools bluez-alsa-utils \
     pulseaudio-module-bluetooth network-manager
@@ -35,6 +35,27 @@ else
     echo "Radiowecker directory already exists, skipping clone"
 fi
 cd Radiowecker
+
+# 1.1 Python environment and dependencies
+print_section "1.1 Python Environment"
+
+echo "Setting up Python virtual environment and installing requirements..."
+
+# Create venv in project directory if not exists
+if [ ! -d ".venv" ]; then
+    python3 -m venv .venv
+fi
+
+# Activate venv
+source .venv/bin/activate
+
+# Upgrade pip and install requirements
+python -m pip install --upgrade pip
+if [ -f "requirements.txt" ]; then
+    pip install -r requirements.txt
+else
+    echo "requirements.txt not found, skipping pip install"
+fi
 
 # 2. Audio Setup
 print_section "2. Audio Setup"
