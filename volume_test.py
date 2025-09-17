@@ -87,8 +87,10 @@ def main():
             nowA  = (s    >> 1) & 1
             if nowA == prevA:
                 pos += 1  # cw (or ccw depending on wiring)
+                print("cw", s, last)
             else:
                 pos -= 1
+                print("ccw", s, last)
         last = s
 
     c1 = pi.callback(ROTARY_A, pigpio.EITHER_EDGE, cbf)
