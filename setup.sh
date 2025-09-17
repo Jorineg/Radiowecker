@@ -33,10 +33,11 @@ sudo apt-get update
 echo "Installing required packages..."
 sudo apt-get install -y git python3 python3-pip python3-venv \
     python3-rpi.gpio python3-luma.core python3-luma.oled \
-    python3-pygame python3-alsaaudio python3-vlc python3-numpy \
+    python3-alsaaudio python3-vlc python3-numpy \
     libopenblas0-pthread liblapack3 libasound2-plugins \
     vlc pulseaudio bluetooth bluez bluez-tools bluez-alsa-utils \
     pulseaudio-module-bluetooth network-manager i2c-tools python3-pil
+    # no pygame on pi
 
 # Clone repository
 echo "Cloning Radiowecker repository..."

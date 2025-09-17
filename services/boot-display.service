@@ -7,10 +7,10 @@ Conflicts=shutdown.target
 
 [Service]
 Type=simple
-User=root
-Environment=PYTHONPATH=/home/admin/Radiowecker
-WorkingDirectory=/home/admin/Radiowecker
-ExecStart=/usr/bin/python3 /home/admin/Radiowecker/boot_display.py
+User=%USER%
+Environment=PYTHONPATH=%HOME%/Radiowecker
+WorkingDirectory=%HOME%/Radiowecker
+ExecStart=/usr/bin/python3 boot_display.py
 StandardOutput=journal
 StandardError=journal
 RemainAfterExit=no
