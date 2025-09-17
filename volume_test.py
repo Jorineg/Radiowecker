@@ -79,6 +79,8 @@ def main():
     def cbf(gpio, level, tick):
         global last, pos
         s = (pi.read(ROTARY_A) << 1) | pi.read(ROTARY_B)
+        if(s == last):
+            return
         print(s)
         if s != last and s in (0, 3):             # only when A==B
             prevA = (last >> 1) & 1
