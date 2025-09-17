@@ -16,6 +16,8 @@ ROTARY_SW = ROTARY1_SW
 
 
 pi = pigpio.pi()
+pos = 0
+last = (pi.read(ROTARY_A) << 1) | pi.read(ROTARY_B)
 
 
 def main():
@@ -29,9 +31,7 @@ def main():
     # Initialize volume control
     volume = VolumeControl()
 
-    pos = 0
 
-    
     def handle_rotation():
         global pos
         ticks = -pos
@@ -75,7 +75,6 @@ def main():
         pi.set_pull_up_down(g, pigpio.PUD_UP)
         # pi.set_glitch_filter(g, 2000)  # debounce
 
-    last = (pi.read(ROTARY_A) << 1) | pi.read(ROTARY_B)
 
     def cbf(gpio, level, tick):
         global last, pos
