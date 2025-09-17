@@ -2,7 +2,7 @@ numpy
 python-vlc
 RPi.GPIO
 pygame
-alsaaudio
+pyalsaaudio
 freetype-py
 luma.core
 luma.oled
