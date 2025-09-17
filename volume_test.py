@@ -36,6 +36,8 @@ def main():
         global pos
         ticks = -pos
         pos = 0
+        if(ticks == 0):
+            return
         # Ticks * 2 für schnellere Änderung
         if ticks > 0:
             vol = volume.volume_up(step=ticks * 2)
