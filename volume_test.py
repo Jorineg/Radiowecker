@@ -173,7 +173,7 @@ def main():
     except KeyboardInterrupt:
         # calculate mean interval of times
         print("--------------------------------")
-        print("".join(positions))
+        print("".join(map(str, positions)))
         print("--------------------------------")
 
 
