@@ -15,6 +15,8 @@ ROTARY_SW = ROTARY1_SW
 
 last_polling = time.time()
 
+positions = []
+
 class RotaryEncoder:
     # Encoder sequence for clockwise rotation: 3,2,0,1,3
     # Each position: (MSB) pin_a,pin_b (LSB)
@@ -75,6 +77,7 @@ class RotaryEncoder:
 
                 # print(f"old={old_idx}, new={new_idx}, step={step}, tc={self.turn_count}, at={self.accumulated_ticks}, td={time_delta*1000:.1f}ms")
                 print(position)
+                positions.append(position)
 
                 if step == 1:  # Next in sequence = CW
                     self.turn_count += 1
@@ -173,6 +176,10 @@ def main():
         print(f"Mean interval: {mean_interval*1000:.1f}ms")
         encoder.stop()
         GPIO.cleanup()
+
+        print("--------------------------------")
+        print(posisitions.join(""))
+        print("--------------------------------")
 
 if __name__ == "__main__":
     main()
