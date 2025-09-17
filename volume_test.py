@@ -34,7 +34,7 @@ def main():
     volume = VolumeControl()
     
     def handle_rotation():
-        ticks = encoder.steps
+        ticks = -encoder.steps
         encoder.steps = 0
         # Ticks * 2 für schnellere Änderung
         if ticks > 0:
@@ -70,13 +70,12 @@ def main():
     
 
     encoder = RotaryEncoder(ROTARY_A, ROTARY_B, bounce_time=0.001, pin_factory=PiGPIOFactory())
-
     try:
         while True:
             time.sleep(0.01)
             handle_rotation()
+            handle_rotation()
     except KeyboardInterrupt:
-        GPIO.cleanup()
 
 
 if __name__ == "__main__":
