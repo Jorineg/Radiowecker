@@ -68,13 +68,12 @@ class RotaryEncoder:
         if position != self.last_position:
 
             if (position == 0 or position == 3) and (self.last_position == 1 or self.last_position == 2):
-                step = ((position + self.last_position) % 2)*2 - 1
 
                 # print(f"old={self.last_position}, new={position}, step={step}, tc={self.turn_count}, at={self.accumulated_ticks}, td={time_delta*1000:.1f}ms")
-                print(position)
-                
+                step = ((position + self.last_position) % 2)*2 - 1
                 self.accumulated_ticks += step
             
+            print(position, self.accumulated_ticks)
             positions.append(position)
             self.last_position = position  # Position sofort aktualisieren
                 
@@ -85,7 +84,7 @@ class RotaryEncoder:
             if self.accumulated_ticks != 0:
                 self.callback(self.accumulated_ticks)  # Callback mit Anzahl der Ticks
                 self.accumulated_ticks = 0  # Reset
-            time.sleep(0.01)  # 10ms sleep
+            time.sleep(10.01)  # 10ms sleep
             
     def stop(self):
         self._running = False
