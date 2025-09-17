@@ -102,7 +102,7 @@ def main():
 
     
     while True:
-        time.sleep(0.1)
+        time.sleep(0.03)
         handle_rotation()
 
 if __name__ == "__main__":
