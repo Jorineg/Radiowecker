@@ -69,7 +69,7 @@ def main():
         display.show()
     
 
-    encoder = RotaryEncoder(ROTARY_A, ROTARY_B, bounce_time=0.001, pin_factory=PiGPIOFactory())
+    encoder = RotaryEncoder(ROTARY_A, ROTARY_B, pin_factory=PiGPIOFactory())
     
     while True:
         time.sleep(0.01)
