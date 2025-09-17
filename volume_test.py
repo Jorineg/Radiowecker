@@ -82,7 +82,7 @@ def main():
         if(s == last):
             return
         print(s)
-        if s != last and s in (0, 3):             # only when A==B
+        if s in (0, 3) and last in (1, 2):             # only when A==B
             prevA = (last >> 1) & 1
             nowA  = (s    >> 1) & 1
             if nowA == prevA:
