@@ -72,7 +72,7 @@ def main():
     encoder = RotaryEncoder(ROTARY_A, ROTARY_B, pin_factory=PiGPIOFactory())
     
     while True:
-        time.sleep(0.01)
+        time.sleep(0.03)
         handle_rotation()
 
 if __name__ == "__main__":
