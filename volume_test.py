@@ -74,7 +74,6 @@ def main():
     try:
         while True:
             time.sleep(0.01)
-            encoder.update()
     except KeyboardInterrupt:
         encoder.when_rotated = None
         GPIO.cleanup()
