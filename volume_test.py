@@ -20,7 +20,6 @@ positions = []
 class RotaryEncoder:
     # Encoder sequence for clockwise rotation: 3,2,0,1,3
     # Each position: (MSB) pin_a,pin_b (LSB)
-    SEQ_CW = [0b11, 0b10, 0b00, 0b01]  # 3,2,0,1
     
     def __init__(self, pin_a, pin_b, callback):
         self.pin_a = pin_a
@@ -42,9 +41,9 @@ class RotaryEncoder:
         self._read_position()
         
         # Start callback thread
-        # self.callback_thread = threading.Thread(target=self._callback_thread)
-        # self.callback_thread.daemon = True
-        # self.callback_thread.start()
+        self.callback_thread = threading.Thread(target=self._callback_thread)
+        self.callback_thread.daemon = True
+        self.callback_thread.start()
         
     def _read_position(self):
         """Read current position in sequence (0-3)"""
@@ -67,41 +66,18 @@ class RotaryEncoder:
             
         # Position changed
         if position != self.last_position:
-            # Find positions in sequence
-            try:
-                old_idx = self.SEQ_CW.index(self.last_position)
-                new_idx = self.SEQ_CW.index(position)
-                
-                # Compute step
-                step = (new_idx - old_idx) % 4
 
-                # print(f"old={old_idx}, new={new_idx}, step={step}, tc={self.turn_count}, at={self.accumulated_ticks}, td={time_delta*1000:.1f}ms")
+            if (position == 0 || position == 3) && (self.last_position == 1 || self.last_position == 2):
+                step = ((position + self.last_position) % 2)*2 - 1
+
+                # print(f"old={self.last_position}, new={position}, step={step}, tc={self.turn_count}, at={self.accumulated_ticks}, td={time_delta*1000:.1f}ms")
                 print(position)
                 positions.append(position)
-
-                if step == 1:  # Next in sequence = CW
-                    self.turn_count += 1
-                    if self.turn_count >= 2:  # Complete rotation
-                        self.turn_count = 0
-                        self.accumulated_ticks += 1
-                    self.last_position = position  # Position sofort aktualisieren
-                        
-                elif step == 3:  # Previous in sequence = CCW
-                    self.turn_count -= 1
-                    if self.turn_count <= -2:  # Complete rotation
-                        self.turn_count = 0
-                        self.accumulated_ticks -= 1
-                    self.last_position = position  # Position sofort aktualisieren
-                        
-                else:  # Invalid sequence
-                    self.turn_count = 0
-                    # Bei ungültiger Sequenz Position NICHT aktualisieren
-                    
-            except ValueError:
-                # Invalid state, reset
-                self.turn_count = 0
-                # Bei ungültigem State Position NICHT aktualisieren
                 
+                self.last_position = position  # Position sofort aktualisieren
+                self.accumulated_ticks += step
+                
+
     def _callback_thread(self):
         """Thread für periodische Callbacks"""
         while self._running:
@@ -123,7 +99,7 @@ def main():
         display = PygameDisplay(128, 64)
     
     # Initialize volume control
-    # volume = VolumeControl()
+    volume = VolumeControl()
     
     def handle_rotation(ticks):
         # Ticks * 2 für schnellere Änderung
@@ -159,8 +135,8 @@ def main():
         display.show()
     
     # Initialize rotary encoder
-    # encoder = RotaryEncoder(ROTARY_A, ROTARY_B, handle_rotation)
-    encoder = RotaryEncoder(ROTARY_A, ROTARY_B, lambda x: None)
+    encoder = RotaryEncoder(ROTARY_A, ROTARY_B, handle_rotation)
+    # encoder = RotaryEncoder(ROTARY_A, ROTARY_B, lambda x: None)
 
     
     try:
