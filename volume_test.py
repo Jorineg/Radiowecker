@@ -72,10 +72,11 @@ class RotaryEncoder:
 
                 # print(f"old={self.last_position}, new={position}, step={step}, tc={self.turn_count}, at={self.accumulated_ticks}, td={time_delta*1000:.1f}ms")
                 print(position)
-                positions.append(position)
                 
-                self.last_position = position  # Position sofort aktualisieren
                 self.accumulated_ticks += step
+            
+            positions.append(position)
+            self.last_position = position  # Position sofort aktualisieren
                 
 
     def _callback_thread(self):
