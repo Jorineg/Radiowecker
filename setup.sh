@@ -24,7 +24,7 @@ echo "Installing required packages..."
 sudo apt-get install -y git python3-rpi.gpio python3-luma.core python3-luma.oled \
     vlc python3-vlc python3-numpy libasound2-plugins \
     pulseaudio bluetooth bluez bluez-tools bluez-alsa-utils \
-    pulseaudio-module-bluetooth
+    pulseaudio-module-bluetooth network-manager
 
 # Clone repository
 echo "Cloning Radiowecker repository..."
@@ -76,6 +76,11 @@ EOL
 # 4. Create System Services
 print_section "4. Creating System Services"
 
+# Install Wi-Fi importer script
+echo "Installing Wi-Fi importer script..."
+sudo install -m 0755 -d /usr/local/sbin
+sudo install -m 0755 scripts/import-wifi.sh /usr/local/sbin/import-wifi.sh
+
 # Function to install a service file
 install_service() {
     local service_name=$1
@@ -95,6 +100,7 @@ install_service "boot-display.service"
 install_service "radiowecker.service"
 install_service "digiamp-init.service"
 install_service "radiowecker-amp.service"
+install_service "wifi-importer.service"
 
 # 5. Enable Services
 print_section "5. Enabling Services"
@@ -110,6 +116,7 @@ sudo systemctl enable bluealsa
 sudo systemctl enable bt-agent
 sudo systemctl enable digiamp-init
 sudo systemctl enable radiowecker-amp
+sudo systemctl enable wifi-importer
 
 # Disable unnecessary services
 echo "Disabling unnecessary services..."

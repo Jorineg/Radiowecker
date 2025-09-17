@@ -1,0 +1,13 @@
+[Unit]
+Description=Import Wi-Fi credentials from Windows-visible partitions into NetworkManager
+After=local-fs.target network-manager.service
+Wants=network-manager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/import-wifi.sh
+
+[Install]
+WantedBy=multi-user.target
+
+
