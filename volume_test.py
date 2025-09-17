@@ -172,14 +172,16 @@ def main():
             
     except KeyboardInterrupt:
         # calculate mean interval of times
+        print("--------------------------------")
+        print(posisitions.join(""))
+        print("--------------------------------")
+
+        
         mean_interval = sum(times[1:] - times[:-1]) / len(times[1:])
         print(f"Mean interval: {mean_interval*1000:.1f}ms")
         encoder.stop()
         GPIO.cleanup()
 
-        print("--------------------------------")
-        print(posisitions.join(""))
-        print("--------------------------------")
 
 if __name__ == "__main__":
     main()
