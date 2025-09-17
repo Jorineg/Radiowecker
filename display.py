@@ -5,6 +5,10 @@ from pygame_manager import PygameManager
 import numpy as np
 import time
 import threading
+try:
+    import pygame  # Ensure pygame is available when using PygameDisplay
+except ImportError:
+    pygame = None
 
 try:
     import RPi.GPIO as GPIO
@@ -115,6 +119,8 @@ class PygameDisplay(Display):
         super().__init__(width, height)
         self.scale = scale
         self.pygame = PygameManager.get_instance()
+        if pygame is None:
+            raise ImportError("pygame is required for PygameDisplay but is not installed")
         self.screen = pygame.display.set_mode((width * scale, height * scale))
         pygame.display.set_caption("RadioWecker Display Emulation")
         self.pygame.set_screen(self.screen)
